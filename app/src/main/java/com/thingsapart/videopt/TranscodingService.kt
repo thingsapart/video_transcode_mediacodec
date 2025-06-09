@@ -12,12 +12,12 @@ import android.media.MediaFormat // Keep for getEstimatedVideoBitrate
 import android.media.MediaMetadataRetriever // Keep for getEstimatedVideoBitrate
 import android.net.Uri
 import android.os.Build
-import io.deepmedia.transcoder.Transcoder
-import io.deepmedia.transcoder.TranscoderListener
-import io.deepmedia.transcoder.strategy.DefaultAudioStrategy
-import io.deepmedia.transcoder.strategy.DefaultVideoStrategy
-import io.deepmedia.transcoder.resizer.ExactResizer
-import io.deepmedia.transcoder.resizer.PassThroughResizer
+import com.otaliastudios.transcoder.Transcoder
+import com.otaliastudios.transcoder.TranscoderListener
+import com.otaliastudios.transcoder.strategy.DefaultAudioStrategy
+import com.otaliastudios.transcoder.strategy.DefaultVideoStrategy
+import com.otaliastudios.transcoder.resize.ExactResizer
+import com.otaliastudios.transcoder.resize.PassThroughResizer
 import android.os.IBinder
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
@@ -100,16 +100,16 @@ class TranscodingService : Service() {
                     val targetAudioBitrateKbps = settingsManager.loadAudioBitrate()
 
                     // Video Strategy Setup
-                    val videoStrategyBuilder = io.deepmedia.transcoder.strategy.DefaultVideoStrategy.builder()
+                    val videoStrategyBuilder = com.otaliastudios.transcoder.strategy.DefaultVideoStrategy.Builder()
 
                     // Resolution Strategy
                     if (targetResolutionStr == "Original") {
-                        videoStrategyBuilder.addResizer(io.deepmedia.transcoder.resizer.PassThroughResizer())
+                        videoStrategyBuilder.addResizer(com.otaliastudios.transcoder.resize.PassThroughResizer())
                         Log.d(TAG, "Video Resolution: Original (PassThroughResizer)")
                     } else {
                         val resolutionPair = SettingsActivity.COMMON_RESOLUTIONS[targetResolutionStr]
                         if (resolutionPair != null) {
-                            videoStrategyBuilder.addResizer(io.deepmedia.transcoder.resizer.ExactResizer(resolutionPair.first, resolutionPair.second))
+                            videoStrategyBuilder.addResizer(com.otaliastudios.transcoder.resize.ExactResizer(resolutionPair.first, resolutionPair.second))
                             Log.d(TAG, "Video Resolution: ${resolutionPair.first}x${resolutionPair.second} (ExactResizer)")
                         } else {
                             Log.w(TAG, "Unknown resolution string: $targetResolutionStr. Using library default sizing for video.")
@@ -135,29 +135,29 @@ class TranscodingService : Service() {
                                 Log.d(TAG, "Video Bitrate: $estimatedBitrate bps")
                             }
                         } else {
-                            videoStrategyBuilder.bitRate(io.deepmedia.transcoder.strategy.DefaultVideoStrategy.BITRATE_UNKNOWN)
+                            videoStrategyBuilder.bitRate(com.otaliastudios.transcoder.strategy.DefaultVideoStrategy.BITRATE_UNKNOWN)
                             Log.d(TAG, "Video Bitrate: Unknown (due to unknown resolution)")
                         }
                     } else {
-                        videoStrategyBuilder.bitRate(io.deepmedia.transcoder.strategy.DefaultVideoStrategy.BITRATE_AS_IS)
+                        videoStrategyBuilder.bitRate(com.otaliastudios.transcoder.strategy.DefaultVideoStrategy.BITRATE_UNKNOWN)
                         Log.d(TAG, "Video Bitrate: AS_IS (for original resolution)")
                     }
                     val videoTrackStrategy = videoStrategyBuilder.build()
 
                     // Audio Strategy Setup
-                    val audioStrategyBuilder = io.deepmedia.transcoder.strategy.DefaultAudioStrategy.builder()
+                    val audioStrategyBuilder = com.otaliastudios.transcoder.strategy.DefaultAudioStrategy.builder()
                     if (targetAudioBitrateKbps > 0) {
                         audioStrategyBuilder.bitRate((targetAudioBitrateKbps * 1000).toLong())
                         Log.d(TAG, "Audio Bitrate: ${targetAudioBitrateKbps * 1000} bps")
                     } else {
-                        audioStrategyBuilder.bitRate(io.deepmedia.transcoder.strategy.DefaultAudioStrategy.BITRATE_AS_IS)
+                        audioStrategyBuilder.bitRate(com.otaliastudios.transcoder.strategy.DefaultAudioStrategy.BITRATE_UNKNOWN)
                         Log.d(TAG, "Audio Bitrate: AS_IS")
                     }
                     val audioTrackStrategy = audioStrategyBuilder.build()
 
                     File(outputVideoPath).parentFile?.mkdirs()
 
-                    val listener = object : io.deepmedia.transcoder.TranscoderListener {
+                    val listener = object : com.otaliastudios.transcoder.TranscoderListener {
                         override fun onTranscodeProgress(progress: Double) {
                             if (serviceJob.isActive) {
                                 if (progress >= 0 && progress <= 1.0) {
@@ -175,11 +175,11 @@ class TranscodingService : Service() {
                                 // For more accuracy, one might inspect the file or have the strategy define it.
                                 val mimeType = "video/mp4"
                                 when (successCode) {
-                                    io.deepmedia.transcoder.Transcoder.SUCCESS_TRANSCODED -> {
+                                    com.otaliastudios.transcoder.Transcoder.SUCCESS_TRANSCODED -> {
                                         Log.i(TAG, "Transcoding successful (SUCCESS_TRANSCODED). Output: $outputVideoPath")
                                         sendBroadcastResult(ACTION_TRANSCODING_COMPLETE, outputUri.toString(), outputMimeType = mimeType)
                                     }
-                                    io.deepmedia.transcoder.Transcoder.SUCCESS_NOT_NEEDED -> {
+                                    com.otaliastudios.transcoder.Transcoder.SUCCESS_NOT_NEEDED -> {
                                         Log.i(TAG, "Transcoding not needed (SUCCESS_NOT_NEEDED). Output: $outputVideoPath")
                                         // If not needed, the output path might be the input path or a copy.
                                         // For simplicity, we assume outputVideoPath is correctly handled by the library.
@@ -214,7 +214,7 @@ class TranscodingService : Service() {
                     }
 
                     updateNotification("Transcoding video...")
-                    io.deepmedia.transcoder.Transcoder.into(outputVideoPath)
+                    com.otaliastudios.transcoder.Transcoder.into(outputVideoPath)
                         .addDataSource(applicationContext, inputVideoUri)
                         .setVideoTrackStrategy(videoTrackStrategy)
                         .setAudioTrackStrategy(audioTrackStrategy)
