@@ -107,7 +107,7 @@
         <item name="indicatorColor">?attr/colorPrimary</item>
         <item name="trackColor">?attr/colorSurfaceVariant</item>
         <item name="android:minHeight">8dp</item>
-        <item name="trackCornerRadius">4dp</item>
+        <item name="trackCornerRadius">@dimen/corner_radius_small</item> <!-- Changed to use defined dimen -->
     </style>
 
 </resources>
