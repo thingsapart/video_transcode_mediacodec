@@ -9,9 +9,9 @@ class SettingsManager(context: Context) {
 
     // Moved from SettingsActivity
     internal val STANDARD_RESOLUTIONS_MAP = linkedMapOf(
-        "Original" to "Original", // Keep "Original" as a special case if it means pass-through
-        "240p (426x240)" to "426x240", // Added
-        "360p (640x360)" to "640x360",   // Added
+        // "Original" removed, will be handled by getString(R.string.resolution_original_display_name) in SettingsActivity
+        "240p (426x240)" to "426x240",
+        "360p (640x360)" to "640x360",
         "480p (854x480)" to "854x480",
         "720p (1280x720)" to "1280x720",
         "1080p (1920x1080)" to "1920x1080",

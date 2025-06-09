@@ -51,7 +51,9 @@
                             android:id="@+id/spinner_resolution"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:inputType="none" />
+                            android:inputType="none"
+                            android:focusable="false"
+                            android:cursorVisible="false" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <ImageButton
@@ -126,7 +128,9 @@
                             android:id="@+id/spinner_frame_rate"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:inputType="none" />
+                            android:inputType="none"
+                            android:focusable="false"
+                            android:cursorVisible="false" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <ImageButton
