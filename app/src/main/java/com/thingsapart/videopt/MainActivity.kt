@@ -92,7 +92,7 @@ class MainActivity : Activity() {
         if (videoUri != null) {
             tvStatus.text = "Received video: $videoUri - Starting transcoding..."
             Log.d(TAG, "ACTION_SEND: Received video URI: $videoUri")
-            TranscodingService.startTranscoding(applicationContext, videoUri)
+            TranscodingService.startTranscoding(this@MainActivity, videoUri)
         } else {
             tvStatus.text = "Error: No video URI found in share intent."
             Log.e(TAG, "ACTION_SEND: Video URI is null")
