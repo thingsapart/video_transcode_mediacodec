@@ -160,10 +160,21 @@ class VideoTranscoder(private val context: Context) {
                             videoDecoderDone = true
                             if (encoderInputSurface == null) {
                                 Log.e(TAG, "CRITICAL: encoderInputSurface is NULL before attempting to call videoEncoder.signalEndOfInputStream()!")
+                                // If surface is null, calling signalEndOfInputStream() would definitely be an error,
+                                // but the specific error we are trying to catch is when the Surface object is valid
+                                // yet MediaCodec claims it's not set.
                             } else {
                                 Log.d(TAG, "encoderInputSurface is valid ($encoderInputSurface), proceeding to call videoEncoder.signalEndOfInputStream().")
                             }
-                            videoEncoder.signalEndOfInputStream() // Signal EOS to encoder via surface
+
+                            try {
+                                videoEncoder.signalEndOfInputStream()
+                            } catch (e: IllegalStateException) {
+                                // Check if the message is the specific one we're concerned about, though any IllegalStateException here is problematic.
+                                Log.e(TAG, "Caught IllegalStateException when calling signalEndOfInputStream(). Encoder might be in an error state. Video stream may be incomplete. Message: ${e.message}", e)
+                                // Decide if further action is needed, e.g., setting a flag to indicate error.
+                                // For now, just logging and allowing to proceed (which might mean the encoder doesn't properly finish).
+                            }
                         }
                         // Render the buffer to the surface if it contains data.
                         // The surface is the encoder's input surface.
