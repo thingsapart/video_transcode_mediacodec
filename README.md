@@ -1,4 +1,4 @@
-# A simple video transcoding app using MediaCodec + Hardware Acceleration
+# VideOpt - A simple video transcoding app using MediaCodec + Hardware Acceleration
 
 A lot of this vibe-coded with Jules. Seems to work for what I need it to do though.
 
