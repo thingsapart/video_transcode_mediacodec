@@ -5,14 +5,14 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.graphics.BitmapFactory
-import android.media.ThumbnailUtils
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.provider.MediaStore
 import android.util.Log
 import android.view.View
+// Remove unused MediaStore import if ThumbnailUtils specific parts are removed.
+// import android.provider.MediaStore
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.ImageView
@@ -24,8 +24,9 @@ import android.widget.VideoView
 import androidx.core.content.FileProvider
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
-import java.io.File
-import java.io.IOException
+// Remove unused File and IOException if they are only for ThumbnailUtils.createVideoThumbnailFile
+// import java.io.File
+// import java.io.IOException
 
 class PreviewActivity : Activity() {
 
@@ -154,45 +155,33 @@ class PreviewActivity : Activity() {
     private fun loadThumbnail(videoUri: Uri?) {
         if (videoUri == null) {
             Log.e(TAG, "Cannot load thumbnail, videoUri is null.")
-            imageViewThumbnail.setImageResource(R.drawable.ic_launcher_background) // Placeholder
+            imageViewThumbnail.setImageResource(R.drawable.ic_placeholder_video)
             return
         }
 
-        var thumbnailFile: File? = null
+        var retriever: MediaMetadataRetriever? = null
         try {
-            val tempFile = File.createTempFile("thumb", ".jpg", cacheDir)
-            val success = ThumbnailUtils.createVideoThumbnailFile(
-                contentResolver.openFileDescriptor(videoUri, "r")!!.fileDescriptor,
-                tempFile.absolutePath,
-                MediaStore.Images.Thumbnails.MINI_KIND // Or MICRO_KIND for smaller
-            )
+            retriever = MediaMetadataRetriever()
+            retriever.setDataSource(applicationContext, videoUri)
+            // Get a frame at an arbitrary time, -1 gets the first available frame, OPTION_CLOSEST_SYNC is usually good.
+            val bitmap = retriever.getFrameAtTime(-1, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
 
-            if (success) {
-                thumbnailFile = tempFile
-                val bitmap = BitmapFactory.decodeFile(thumbnailFile.absolutePath)
+            if (bitmap != null) {
                 imageViewThumbnail.setImageBitmap(bitmap)
-                Log.d(TAG, "Thumbnail loaded successfully into ImageView from: ${thumbnailFile.absolutePath}")
+                Log.d(TAG, "Thumbnail loaded successfully into ImageView using MediaMetadataRetriever.")
             } else {
-                Log.e(TAG, "Failed to generate thumbnail file for URI: $videoUri")
-                imageViewThumbnail.setImageResource(R.drawable.ic_launcher_background) // Placeholder
+                Log.e(TAG, "Failed to retrieve thumbnail using MediaMetadataRetriever, bitmap is null for URI: $videoUri")
+                imageViewThumbnail.setImageResource(R.drawable.ic_placeholder_video)
             }
-        } catch (e: IOException) {
-            Log.e(TAG, "IOException during thumbnail generation for URI: $videoUri", e)
-            imageViewThumbnail.setImageResource(R.drawable.ic_launcher_background) // Placeholder
-        } catch (e: SecurityException) {
-            Log.e(TAG, "SecurityException: Permission denied for URI: $videoUri", e)
-            Toast.makeText(this, "Permission denied to access video.", Toast.LENGTH_SHORT).show()
-            imageViewThumbnail.setImageResource(R.drawable.ic_launcher_background) // Placeholder
         } catch (e: Exception) {
-            Log.e(TAG, "Generic exception during thumbnail generation for URI: $videoUri", e)
-            imageViewThumbnail.setImageResource(R.drawable.ic_launcher_background) // Placeholder
+            Log.e(TAG, "Error loading thumbnail with MediaMetadataRetriever for URI: $videoUri", e)
+            imageViewThumbnail.setImageResource(R.drawable.ic_placeholder_video)
         } finally {
-            // Attempt to delete the temporary thumbnail file if it exists and wasn't used or failed
-            // If successful, the bitmap is in memory, file can be deleted.
-            // However, for simplicity and ensuring it's there if needed by other parts,
-            // we might leave it, or manage its lifecycle more carefully.
-            // For now, let's delete if it was created.
-            thumbnailFile?.delete()
+            try {
+                retriever?.release()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error releasing MediaMetadataRetriever", e)
+            }
         }
     }
 
