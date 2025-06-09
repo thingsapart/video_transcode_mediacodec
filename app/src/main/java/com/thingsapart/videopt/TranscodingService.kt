@@ -45,11 +45,16 @@ class TranscodingService : Service() {
         const val NOTIFICATION_CHANNEL_ID = "TranscodingChannel"
         const val NOTIFICATION_ID = 1
 
-        const val ACTION_TRANSCODING_COMPLETE = "com.example.videotranscoder.action.TRANSCODING_COMPLETE"
-        const val ACTION_TRANSCODING_ERROR = "com.example.videotranscoder.action.TRANSCODING_ERROR"
+        // Using the package name as per the subtask description for consistency
+        const val ACTION_TRANSCODING_PROGRESS = "com.thingsapart.videopt.action.TRANSCODING_PROGRESS"
+        const val ACTION_TRANSCODING_COMPLETE = "com.thingsapart.videopt.action.TRANSCODING_COMPLETE"
+        const val ACTION_TRANSCODING_ERROR = "com.thingsapart.videopt.action.TRANSCODING_ERROR"
         const val EXTRA_OUTPUT_URI = "extra_output_uri"
-        const val EXTRA_OUTPUT_MIME_TYPE = "extra_output_mime_type" // New
+        const val EXTRA_OUTPUT_MIME_TYPE = "extra_output_mime_type"
         const val EXTRA_ERROR_MESSAGE = "extra_error_message"
+        const val EXTRA_PROGRESS = "extra_progress"
+        const val EXTRA_OUTPUT_VIDEO_SIZE = "com.thingsapart.videopt.extra.OUTPUT_VIDEO_SIZE"
+
 
         fun startTranscoding(context: Context, inputVideoUri: Uri) {
             val intent = Intent(context, TranscodingService::class.java).apply {
@@ -160,10 +165,13 @@ class TranscodingService : Service() {
                     val listener = object : com.otaliastudios.transcoder.TranscoderListener {
                         override fun onTranscodeProgress(progress: Double) {
                             if (serviceJob.isActive) {
+                                val progressInt = (progress * 100).toInt()
                                 if (progress >= 0 && progress <= 1.0) {
-                                   updateNotification("Transcoding: ${ (progress * 100).toInt() }%")
+                                   updateNotification("Transcoding: $progressInt%")
+                                   sendProgressBroadcast(progressInt)
                                 } else if (progress > 1.0) { // Progress can sometimes slightly exceed 1.0
                                    updateNotification("Transcoding: 100%")
+                                   sendProgressBroadcast(100)
                                 }
                             }
                         }
@@ -174,20 +182,21 @@ class TranscodingService : Service() {
                                 // The library typically outputs MP4, so this is a safe assumption.
                                 // For more accuracy, one might inspect the file or have the strategy define it.
                                 val mimeType = "video/mp4"
+                                val outputFile = File(outputVideoPath)
+                                val outputSizeBytes = if (outputFile.exists()) outputFile.length() else -1L
+
                                 when (successCode) {
                                     com.otaliastudios.transcoder.Transcoder.SUCCESS_TRANSCODED -> {
-                                        Log.i(TAG, "Transcoding successful (SUCCESS_TRANSCODED). Output: $outputVideoPath")
-                                        sendBroadcastResult(ACTION_TRANSCODING_COMPLETE, outputUri.toString(), outputMimeType = mimeType)
+                                        Log.i(TAG, "Transcoding successful (SUCCESS_TRANSCODED). Output: $outputVideoPath, Size: $outputSizeBytes bytes")
+                                        sendBroadcastResult(ACTION_TRANSCODING_COMPLETE, outputUri.toString(), outputMimeType = mimeType, outputSize = outputSizeBytes)
                                     }
                                     com.otaliastudios.transcoder.Transcoder.SUCCESS_NOT_NEEDED -> {
-                                        Log.i(TAG, "Transcoding not needed (SUCCESS_NOT_NEEDED). Output: $outputVideoPath")
-                                        // If not needed, the output path might be the input path or a copy.
-                                        // For simplicity, we assume outputVideoPath is correctly handled by the library.
-                                        sendBroadcastResult(ACTION_TRANSCODING_COMPLETE, outputUri.toString(), outputMimeType = mimeType)
+                                        Log.i(TAG, "Transcoding not needed (SUCCESS_NOT_NEEDED). Output: $outputVideoPath, Size: $outputSizeBytes bytes")
+                                        sendBroadcastResult(ACTION_TRANSCODING_COMPLETE, outputUri.toString(), outputMimeType = mimeType, outputSize = outputSizeBytes)
                                     }
                                     else -> { // Should not happen based on current library codes
-                                         Log.w(TAG, "Transcoding completed with unknown successCode: $successCode. Output: $outputVideoPath")
-                                         sendBroadcastResult(ACTION_TRANSCODING_COMPLETE, outputUri.toString(), outputMimeType = mimeType)
+                                         Log.w(TAG, "Transcoding completed with unknown successCode: $successCode. Output: $outputVideoPath, Size: $outputSizeBytes bytes")
+                                         sendBroadcastResult(ACTION_TRANSCODING_COMPLETE, outputUri.toString(), outputMimeType = mimeType, outputSize = outputSizeBytes)
                                     }
                                 }
                                 stopSelf()
@@ -257,13 +266,21 @@ class TranscodingService : Service() {
         return estimatedBitrate
     }
 
-    private fun sendBroadcastResult(action: String, outputUriString: String? = null, outputMimeType: String? = null, errorMessage: String? = null) {
-        val intent = Intent(action).setPackage(packageName)
+    private fun sendBroadcastResult(action: String, outputUriString: String? = null, outputMimeType: String? = null, errorMessage: String? = null, outputSize: Long? = null) {
+        val intent = Intent(action).setPackage(packageName) // Ensure it's a local broadcast by setting package
         outputUriString?.let { intent.putExtra(EXTRA_OUTPUT_URI, it) }
         outputMimeType?.let { intent.putExtra(EXTRA_OUTPUT_MIME_TYPE, it) }
         errorMessage?.let { intent.putExtra(EXTRA_ERROR_MESSAGE, it) }
+        outputSize?.let { intent.putExtra(EXTRA_OUTPUT_VIDEO_SIZE, it) }
         sendBroadcast(intent)
-        Log.d(TAG, "Broadcast sent: $action, Output: $outputUriString, Mime: $outputMimeType, Error: $errorMessage")
+        Log.d(TAG, "Broadcast sent: $action, Output: $outputUriString, Mime: $outputMimeType, Size: $outputSize, Error: $errorMessage")
+    }
+
+    private fun sendProgressBroadcast(progress: Int) {
+        val intent = Intent(ACTION_TRANSCODING_PROGRESS).setPackage(packageName)
+        intent.putExtra(EXTRA_PROGRESS, progress)
+        sendBroadcast(intent)
+        // Log.d(TAG, "Progress broadcast sent: $progress%") // Can be too noisy, enable if needed
     }
 
     private fun createNotificationChannel() {

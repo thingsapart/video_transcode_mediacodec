@@ -11,20 +11,20 @@ import android.util.Range
 import android.view.View
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
-import android.widget.EditText
-import android.widget.Spinner
+import android.widget.AutoCompleteTextView
 import android.widget.TextView
+import com.google.android.material.textfield.TextInputEditText
 import java.util.Locale
 
 class SettingsActivity : Activity() {
 
     private lateinit var settingsManager: SettingsManager
 
-    private lateinit var spinnerResolution: Spinner
-    private lateinit var spinnerFormat: Spinner
-    private lateinit var spinnerQuality: Spinner
-    private lateinit var editTextFrameRate: EditText
-    private lateinit var editTextAudioBitrate: EditText
+    private lateinit var spinnerResolution: AutoCompleteTextView
+    private lateinit var spinnerFormat: AutoCompleteTextView
+    private lateinit var spinnerQuality: AutoCompleteTextView
+    private lateinit var editTextFrameRate: TextInputEditText
+    private lateinit var editTextAudioBitrate: TextInputEditText
     private lateinit var textViewEstimatedSize: TextView
 
     private var availableCodecs: List<MediaCodecInfo> = listOf()
@@ -65,6 +65,10 @@ class SettingsActivity : Activity() {
         editTextFrameRate = findViewById(R.id.edittext_frame_rate)
         editTextAudioBitrate = findViewById(R.id.edittext_audio_bitrate)
         textViewEstimatedSize = findViewById(R.id.textview_estimated_size)
+        // The following line is commented out as per the instructions to remove custom back button,
+        // however, there was no custom back button to begin with.
+        // supportActionBar?.setDisplayHomeAsUpEnabled(true)
+
 
         queryCodecCapabilities()
         setupSpinners()
@@ -99,7 +103,7 @@ class SettingsActivity : Activity() {
 
     private fun updateCapabilitiesForFormat(mimeType: String) {
         Log.d(TAG, "Updating capabilities for format: $mimeType")
-        val currentSelectedResolution = if(spinnerResolution.selectedItem != null) spinnerResolution.selectedItem.toString() else settingsManager.loadResolution()
+        val currentSelectedResolution = spinnerResolution.text.toString().ifEmpty { settingsManager.loadResolution() }
 
         supportedResolutions.clear()
         supportedResolutions.add("Original") // Keep original resolution option
@@ -156,84 +160,75 @@ class SettingsActivity : Activity() {
         Log.d(TAG, "Final supported resolutions for $mimeType: $supportedResolutions")
 
         // Refresh resolution spinner adapter as its content has changed
-        val newResolutionAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, supportedResolutions.distinct().toTypedArray())
-        newResolutionAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        spinnerResolution.adapter = newResolutionAdapter
-        val newResolutionPos = supportedResolutions.indexOf(currentSelectedResolution).coerceAtLeast(0)
-        spinnerResolution.setSelection(newResolutionPos) // Try to keep previous selection
+        val distinctSupportedResolutions = supportedResolutions.distinct().toTypedArray()
+        val newResolutionAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, distinctSupportedResolutions)
+        spinnerResolution.setAdapter(newResolutionAdapter)
+        // Preserve selection if possible
+        if (distinctSupportedResolutions.contains(currentSelectedResolution)) {
+            spinnerResolution.setText(currentSelectedResolution, false)
+        } else if (distinctSupportedResolutions.isNotEmpty()) {
+            spinnerResolution.setText(distinctSupportedResolutions[0], false)
+        }
     }
 
 
     private fun setupSpinners() {
         // Formats - populated first
-        val formatAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, supportedMimeTypes.toTypedArray())
-        formatAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        spinnerFormat.adapter = formatAdapter
+        val formatAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, supportedMimeTypes.toTypedArray())
+        spinnerFormat.setAdapter(formatAdapter)
 
         // Resolutions - adapter will be set/updated in updateCapabilitiesForFormat and loadSettings
-        val resolutionAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, supportedResolutions.distinct().toTypedArray())
-        resolutionAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        spinnerResolution.adapter = resolutionAdapter
+        val resolutionAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, supportedResolutions.distinct().toTypedArray())
+        spinnerResolution.setAdapter(resolutionAdapter)
 
         // Quality
-        val qualityAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, supportedQualities)
-        qualityAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        spinnerQuality.adapter = qualityAdapter
+        val qualityAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, supportedQualities)
+        spinnerQuality.setAdapter(qualityAdapter)
         Log.d(TAG, "Spinners setup initially. Format items: ${supportedMimeTypes.size}, Resolution items: ${supportedResolutions.size}")
     }
 
     private fun loadSettings() {
         val loadedFormat = settingsManager.loadFormat()
-        val formatPosition = supportedMimeTypes.indexOf(loadedFormat).coerceAtLeast(0)
-        spinnerFormat.setSelection(formatPosition)
+        spinnerFormat.setText(loadedFormat, false)
         // This will also update resolution spinner based on the loaded format
-        updateCapabilitiesForFormat(supportedMimeTypes.getOrElse(formatPosition) { SettingsManager.DEFAULT_FORMAT })
+        updateCapabilitiesForFormat(loadedFormat)
 
         val loadedResolution = settingsManager.loadResolution()
-        val resolutionPosition = supportedResolutions.indexOf(loadedResolution).coerceAtLeast(0)
-        spinnerResolution.setSelection(resolutionPosition)
+        spinnerResolution.setText(loadedResolution, false)
+
 
         val currentQuality = settingsManager.loadQuality()
-        spinnerQuality.setSelection(supportedQualities.indexOf(currentQuality).coerceAtLeast(0))
+        spinnerQuality.setText(currentQuality, false)
+
 
         editTextFrameRate.setText(settingsManager.loadFrameRate().toString())
         editTextAudioBitrate.setText(settingsManager.loadAudioBitrate().toString())
 
-        Log.d(TAG, "Settings loaded: Res=${spinnerResolution.selectedItem}, Format=${spinnerFormat.selectedItem}, Quality=${currentQuality}, FR=${settingsManager.loadFrameRate()}, AudioBR=${settingsManager.loadAudioBitrate()}")
+        Log.d(TAG, "Settings loaded: Res=${spinnerResolution.text}, Format=${spinnerFormat.text}, Quality=${currentQuality}, FR=${settingsManager.loadFrameRate()}, AudioBR=${settingsManager.loadAudioBitrate()}")
         updateEstimatedSize()
     }
 
     private fun setupListeners() {
-        spinnerResolution.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>, view: View?, position: Int, id: Long) {
-                val distinctResolutions = supportedResolutions.distinct()
-                if (position < distinctResolutions.size) {
-                    settingsManager.saveResolution(distinctResolutions[position])
-                    Log.d(TAG, "Resolution saved: ${distinctResolutions[position]}")
-                    updateEstimatedSize()
-                }
-            }
-            override fun onNothingSelected(parent: AdapterView<*>) {}
+        spinnerResolution.setOnItemClickListener { parent, view, position, id ->
+            val selectedResolution = parent.getItemAtPosition(position) as String
+            settingsManager.saveResolution(selectedResolution)
+            Log.d(TAG, "Resolution saved: $selectedResolution")
+            updateEstimatedSize()
         }
 
-        spinnerFormat.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>, view: View?, position: Int, id: Long) {
-                val selectedFormat = supportedMimeTypes[position]
-                settingsManager.saveFormat(selectedFormat)
-                Log.d(TAG, "Format selected: $selectedFormat. Updating capabilities...")
-                updateCapabilitiesForFormat(selectedFormat) // This will refresh resolution spinner
-                updateEstimatedSize()
-            }
-            override fun onNothingSelected(parent: AdapterView<*>) {}
+        spinnerFormat.setOnItemClickListener { parent, view, position, id ->
+            val selectedFormat = parent.getItemAtPosition(position) as String
+            settingsManager.saveFormat(selectedFormat)
+            Log.d(TAG, "Format selected: $selectedFormat. Updating capabilities...")
+            updateCapabilitiesForFormat(selectedFormat) // This will refresh resolution spinner
+            updateEstimatedSize()
         }
 
-        spinnerQuality.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>, view: View?, position: Int, id: Long) {
-                settingsManager.saveQuality(supportedQualities[position])
-                Log.d(TAG, "Quality saved: ${supportedQualities[position]}")
-                updateEstimatedSize()
-            }
-            override fun onNothingSelected(parent: AdapterView<*>) {}
+        spinnerQuality.setOnItemClickListener { parent, view, position, id ->
+            val selectedQuality = parent.getItemAtPosition(position) as String
+            settingsManager.saveQuality(selectedQuality)
+            Log.d(TAG, "Quality saved: $selectedQuality")
+            updateEstimatedSize()
         }
 
         editTextFrameRate.addTextChangedListener(object : TextWatcher {
@@ -296,9 +291,9 @@ class SettingsActivity : Activity() {
 
 
     private fun updateEstimatedSize() {
-        val resolution = if (spinnerResolution.selectedItemPosition != -1) spinnerResolution.selectedItem.toString() else settingsManager.loadResolution()
-        val format = if (spinnerFormat.selectedItemPosition != -1) spinnerFormat.selectedItem.toString() else settingsManager.loadFormat()
-        val quality = if (spinnerQuality.selectedItemPosition != -1) spinnerQuality.selectedItem.toString() else settingsManager.loadQuality()
+        val resolution = spinnerResolution.text.toString().ifEmpty { settingsManager.loadResolution() }
+        val format = spinnerFormat.text.toString().ifEmpty { settingsManager.loadFormat() }
+        val quality = spinnerQuality.text.toString().ifEmpty { settingsManager.loadQuality() }
 
         val frameRateStr = editTextFrameRate.text.toString()
         val audioBitrateStr = editTextAudioBitrate.text.toString()
@@ -307,10 +302,24 @@ class SettingsActivity : Activity() {
         val frameRate = if (frameRateStr.isNotEmpty()) frameRateStr.toIntOrNull() ?: settingsManager.loadFrameRate() else settingsManager.loadFrameRate()
         val audioBitrateKbps = if (audioBitrateStr.isNotEmpty()) audioBitrateStr.toIntOrNull() ?: settingsManager.loadAudioBitrate() else settingsManager.loadAudioBitrate()
 
-
         if (resolution == "Original") {
-            textViewEstimatedSize.text = "Estimated size: N/A (Original resolution)"
-            Log.d(TAG, "Estimation N/A for 'Original' resolution.")
+            // For "Original" resolution, provide an estimate based on 1080p "Medium" quality,
+            // as the actual bitrate can vary wildly or be unknown.
+            // Use current format and audio bitrate settings.
+            val assumed1080pVideoBitrateBps = getEstimatedVideoBitrate("1080p", quality, format) // Use current quality and format
+            val currentAudioBitrateBps = (if (audioBitrateStr.isNotEmpty()) audioBitrateStr.toIntOrNull() ?: settingsManager.loadAudioBitrate() else settingsManager.loadAudioBitrate()) * 1000
+
+            val totalBitrateBpsOriginal = assumed1080pVideoBitrateBps + currentAudioBitrateBps
+            val bytesPerSecondOriginal = totalBitrateBpsOriginal / 8.0
+            val bytesPerMinuteOriginal = bytesPerSecondOriginal * 60
+
+            val formattedSizeOriginal = when {
+                bytesPerMinuteOriginal >= 1_000_000 -> String.format(Locale.US, "%.1f MB/min", bytesPerMinuteOriginal / 1_000_000.0)
+                bytesPerMinuteOriginal >= 1_000 -> String.format(Locale.US, "%.0f KB/min", bytesPerMinuteOriginal / 1_000.0)
+                else -> String.format(Locale.US, "%.0f B/min", bytesPerMinuteOriginal)
+            }
+            textViewEstimatedSize.text = "Est. size (Original as 1080p): ~${formattedSizeOriginal}"
+            Log.d(TAG, "Estimation for 'Original' (as 1080p, $quality, $format): $formattedSizeOriginal")
             return
         }
 
