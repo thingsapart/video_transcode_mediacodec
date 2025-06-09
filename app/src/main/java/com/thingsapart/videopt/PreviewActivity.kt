@@ -133,10 +133,35 @@ class PreviewActivity : Activity() {
             val parsedUri = Uri.parse(inputVideoUriString)
             inputVideoUri = parsedUri
             contentUri = parsedUri // Initialize the contentUri class member
-            Log.d(TAG, "Received input video URI: $inputVideoUri (also as contentUri)")
-            loadThumbnail(inputVideoUri)
+
+            Log.i(TAG, "PreviewActivity onCreate: Parsed URI for thumbnail: $parsedUri")
+            if (parsedUri != null) { // Technically, parsedUri won't be null if inputVideoUriString wasn't, but good for consistency
+                Log.i(TAG, "URI Scheme: ${parsedUri.scheme}, Path: ${parsedUri.path}, Authority: ${parsedUri.authority}")
+                if ("content" == parsedUri.scheme) {
+                    try {
+                        // Querying display name and size for content URIs
+                        val cursor = contentResolver.query(parsedUri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME, android.provider.OpenableColumns.SIZE), null, null, null)
+                        cursor?.use {
+                            if (it.moveToFirst()) {
+                                val displayNameIndex = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                                val sizeIndex = it.getColumnIndex(android.provider.OpenableColumns.SIZE)
+                                val displayName = if(displayNameIndex != -1) it.getString(displayNameIndex) else "N/A"
+                                val size = if(sizeIndex != -1) it.getLong(sizeIndex) else -1L
+                                Log.i(TAG, "Content URI details: Display Name = $displayName, Size = $size")
+                            } else {
+                                Log.w(TAG, "Content URI details: Cursor empty for $parsedUri")
+                            }
+                        } ?: Log.w(TAG, "Content URI details: Cursor is null for $parsedUri")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error querying content URI details for $parsedUri", e)
+                    }
+                }
+            } else { // This else branch should ideally not be hit if inputVideoUriString was non-null
+                Log.e(TAG, "PreviewActivity onCreate: parsedUri is NULL even after parsing from non-null inputVideoUriString.")
+            }
+            loadThumbnail(parsedUri) // Use the local parsedUri which is confirmed non-null here
         } else {
-            Log.e(TAG, "No input_video_uri found in intent.")
+            Log.e(TAG, "No input_video_uri found in intent. inputVideoUriString is null.")
             Toast.makeText(this, "Error: Input video not found.", Toast.LENGTH_LONG).show()
             textViewStatus.text = "Error: Input video not specified."
             imageViewThumbnail.setImageResource(R.drawable.ic_placeholder_video) // Show placeholder
@@ -160,8 +185,9 @@ class PreviewActivity : Activity() {
     }
 
     private fun loadThumbnail(uri: Uri?) { // Parameter renamed to 'uri' to avoid confusion with class member
+        Log.i(TAG, "loadThumbnail called with URI: $uri")
         if (uri == null) {
-            Log.e(TAG, "Cannot load thumbnail, videoUri is null.")
+            Log.w(TAG, "loadThumbnail: videoUri is null, setting placeholder.")
             imageViewThumbnail.setImageResource(R.drawable.ic_placeholder_video)
             return
         }
@@ -169,20 +195,24 @@ class PreviewActivity : Activity() {
         var retriever: MediaMetadataRetriever? = null
         try {
             retriever = MediaMetadataRetriever()
+            // Ensure uri is not null before using !! although the check above should suffice
             retriever.setDataSource(applicationContext, uri)
+            Log.i(TAG, "MediaMetadataRetriever: setDataSource successful for $uri")
             val bitmap = retriever.getFrameAtTime(-1, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+            Log.i(TAG, "MediaMetadataRetriever: getFrameAtTime called. Bitmap is ${if (bitmap == null) "null" else "not null"}")
 
             if (bitmap != null) {
+                Log.i(TAG, "Bitmap retrieved: Dimensions ${bitmap.width}x${bitmap.height}")
                 imageViewThumbnail.setImageBitmap(bitmap)
-                Log.d(TAG, "Thumbnail loaded successfully into ImageView using MediaMetadataRetriever.")
             } else {
                 Log.e(TAG, "Failed to retrieve thumbnail using MediaMetadataRetriever, bitmap is null for URI: $uri")
                 imageViewThumbnail.setImageResource(R.drawable.ic_placeholder_video)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error loading thumbnail with MediaMetadataRetriever for URI: $uri", e)
+            Log.e(TAG, "loadThumbnail: Exception during MediaMetadataRetriever operations for $uri", e)
             imageViewThumbnail.setImageResource(R.drawable.ic_placeholder_video)
         } finally {
+            Log.i(TAG, "loadThumbnail: MediaMetadataRetriever release attempt.")
             try {
                 retriever?.release()
             } catch (e: Exception) {
