@@ -17,6 +17,9 @@ class MainActivity : Activity() {
     private lateinit var tvStatus: TextView
     private lateinit var btnSettings: Button
 
+    private var pendingVideoUriForTranscoding: Uri? = null
+    private var shouldStartTranscodingOnResume: Boolean = false
+
     private val transcodingReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
@@ -90,9 +93,10 @@ class MainActivity : Activity() {
         }
 
         if (videoUri != null) {
-            tvStatus.text = "Received video: $videoUri - Starting transcoding..."
-            Log.d(TAG, "ACTION_SEND: Received video URI: $videoUri")
-            TranscodingService.startTranscoding(applicationContext, videoUri)
+            this.pendingVideoUriForTranscoding = videoUri
+            this.shouldStartTranscodingOnResume = true
+            tvStatus.text = "Received video: $videoUri - Preparing for transcoding..."
+            Log.d(TAG, "ACTION_SEND: Received video URI: $videoUri, will start transcoding onResume")
         } else {
             tvStatus.text = "Error: No video URI found in share intent."
             Log.e(TAG, "ACTION_SEND: Video URI is null")
@@ -108,6 +112,18 @@ class MainActivity : Activity() {
             } catch (e: IllegalArgumentException) {
                 Log.w(TAG, "Receiver not registered or already unregistered: $e")
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        Log.d(TAG, "onResume called. shouldStartTranscodingOnResume: $shouldStartTranscodingOnResume, pendingVideoUri: $pendingVideoUriForTranscoding")
+        if (shouldStartTranscodingOnResume && pendingVideoUriForTranscoding != null) {
+            tvStatus.text = "Starting transcoding for: $pendingVideoUriForTranscoding" // Update status
+            Log.i(TAG, "onResume: Starting transcoding for $pendingVideoUriForTranscoding")
+            TranscodingService.startTranscoding(this, pendingVideoUriForTranscoding!!)
+            pendingVideoUriForTranscoding = null
+            shouldStartTranscodingOnResume = false
         }
     }
 }
