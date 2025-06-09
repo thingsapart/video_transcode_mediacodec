@@ -21,4 +21,11 @@
     <string name="notification_permission_denied_message">Notification permission denied. Transcoding status updates may not be shown reliably.</string>
     <string name="notification_permission_required_status">Notification permission is required to show transcoding progress. Please grant the permission via App Settings if you wish to see progress updates.</string>
     <string name="notification_permission_pending_status">Waiting for notification permission...</string>
+
+    <!-- Strings for TranscodingService notifications -->
+    <string name="transcoding_service_initializing_status">Initializing transcoding service…</string>
+    <string name="transcoding_service_preparing_status">Preparing to transcode: %s</string>
+    <string name="transcoding_service_progress_status">Transcoding: %d%%</string>
+    <string name="transcoding_service_complete_status">Transcoding complete</string>
+    <string name="transcoding_service_error_status">Transcoding error</string>
 </resources>
