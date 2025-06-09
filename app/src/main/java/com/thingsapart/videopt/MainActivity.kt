@@ -18,36 +18,8 @@ class MainActivity : Activity() {
     private lateinit var btnSettings: Button
 
     private var pendingVideoUriForTranscoding: Uri? = null
-    private var shouldStartTranscodingOnResume: Boolean = false
-
-    private val transcodingReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            when (intent?.action) {
-                TranscodingService.ACTION_TRANSCODING_COMPLETE -> {
-                    val outputUriString = intent.getStringExtra(TranscodingService.EXTRA_OUTPUT_URI)
-                    val outputMimeType = intent.getStringExtra(TranscodingService.EXTRA_OUTPUT_MIME_TYPE) ?: "video/mp4" // Fallback
-
-                    tvStatus.text = "Transcoding Complete!"
-                    Toast.makeText(applicationContext, "Transcoding Complete!", Toast.LENGTH_LONG).show()
-                    Log.d(TAG, "Transcoding Complete. Output: $outputUriString, MIME: $outputMimeType")
-                    if (outputUriString != null) {
-                        val previewIntent = Intent(this@MainActivity, PreviewActivity::class.java).apply {
-                            putExtra("transcoded_video_uri", outputUriString)
-                            putExtra("transcoded_video_mime_type", outputMimeType)
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        }
-                        startActivity(previewIntent)
-                    }
-                }
-                TranscodingService.ACTION_TRANSCODING_ERROR -> {
-                    val errorMessage = intent.getStringExtra(TranscodingService.EXTRA_ERROR_MESSAGE)
-                    tvStatus.text = "Transcoding Error: $errorMessage"
-                    Toast.makeText(applicationContext, "Transcoding Error: $errorMessage", Toast.LENGTH_LONG).show()
-                    Log.e(TAG, "Transcoding Error: $errorMessage")
-                }
-            }
-        }
-    }
+    // No longer need a separate receiver in MainActivity if PreviewActivity handles all post-transcoding UI
+    // private val transcodingReceiver = object : BroadcastReceiver() { ... } // Removed for this fix
 
     companion object {
         private const val TAG = "MainActivity"
@@ -64,16 +36,8 @@ class MainActivity : Activity() {
             btnSettings.setOnClickListener {
                 startActivity(Intent(this, SettingsActivity::class.java))
             }
-            val intentFilter = IntentFilter().apply {
-                addAction(TranscodingService.ACTION_TRANSCODING_COMPLETE)
-                addAction(TranscodingService.ACTION_TRANSCODING_ERROR)
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                registerReceiver(transcodingReceiver, intentFilter, RECEIVER_NOT_EXPORTED)
-            } else {
-                registerReceiver(transcodingReceiver, intentFilter)
-            }
-            Log.d(TAG, "BroadcastReceiver registered for share intent flow.")
+            // BroadcastReceiver registration removed from here
+            Log.d(TAG, "Handling share intent.")
             handleShareIntent(intent)
         } else {
             Log.d(TAG, "Direct launch or unknown intent. Navigating to SettingsActivity.")
@@ -94,9 +58,28 @@ class MainActivity : Activity() {
 
         if (videoUri != null) {
             this.pendingVideoUriForTranscoding = videoUri
-            this.shouldStartTranscodingOnResume = true
-            tvStatus.text = "Received video: $videoUri - Preparing for transcoding..."
-            Log.d(TAG, "ACTION_SEND: Received video URI: $videoUri, will start transcoding onResume")
+            // Start PreviewActivity and TranscodingService immediately
+            if (this.pendingVideoUriForTranscoding != null) {
+                tvStatus.text = "Received video: $videoUri - Launching preview and transcoding..."
+                Log.d(TAG, "ACTION_SEND: Received video URI: $videoUri. Starting PreviewActivity and TranscodingService.")
+
+                val previewIntent = Intent(this, PreviewActivity::class.java).apply {
+                    putExtra(PreviewActivity.EXTRA_INPUT_VIDEO_URI, this@MainActivity.pendingVideoUriForTranscoding.toString())
+                    // Optionally, pass original MIME type if available and needed by PreviewActivity for the original
+                    // intent.data?.let { originalUri ->
+                    //    putExtra("original_mime_type", contentResolver.getType(originalUri))
+                    // }
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) // Or remove if not needed from Activity context
+                }
+                startActivity(previewIntent)
+
+                TranscodingService.startTranscoding(this, this.pendingVideoUriForTranscoding!!)
+                this.pendingVideoUriForTranscoding = null // Clear after starting
+            } else {
+                // This case should ideally not be hit if videoUri was non-null above
+                tvStatus.text = "Error: Video URI became null before processing."
+                Log.e(TAG, "ACTION_SEND: pendingVideoUriForTranscoding is null after being set.")
+            }
         } else {
             tvStatus.text = "Error: No video URI found in share intent."
             Log.e(TAG, "ACTION_SEND: Video URI is null")
@@ -105,25 +88,13 @@ class MainActivity : Activity() {
     }
     override fun onDestroy() {
         super.onDestroy()
-        if (intent?.action == Intent.ACTION_SEND && intent.type?.startsWith("video/") == true) {
-            try {
-                unregisterReceiver(transcodingReceiver)
-                Log.d(TAG, "BroadcastReceiver unregistered")
-            } catch (e: IllegalArgumentException) {
-                Log.w(TAG, "Receiver not registered or already unregistered: $e")
-            }
-        }
+        // BroadcastReceiver unregistration removed as receiver is removed
     }
 
     override fun onResume() {
         super.onResume()
-        Log.d(TAG, "onResume called. shouldStartTranscodingOnResume: $shouldStartTranscodingOnResume, pendingVideoUri: $pendingVideoUriForTranscoding")
-        if (shouldStartTranscodingOnResume && pendingVideoUriForTranscoding != null) {
-            tvStatus.text = "Starting transcoding for: $pendingVideoUriForTranscoding" // Update status
-            Log.i(TAG, "onResume: Starting transcoding for $pendingVideoUriForTranscoding")
-            TranscodingService.startTranscoding(this, pendingVideoUriForTranscoding!!)
-            pendingVideoUriForTranscoding = null
-            shouldStartTranscodingOnResume = false
-        }
+        // Logic from onResume that started transcoding is moved to handleShareIntent or onCreate
+        // to ensure PreviewActivity is launched alongside service start.
+        Log.d(TAG, "onResume called.")
     }
 }

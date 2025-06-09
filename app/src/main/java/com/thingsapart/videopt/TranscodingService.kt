@@ -7,9 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-// MediaCodecInfo and MediaFormat might still be needed by getEstimatedVideoBitrate
-import android.media.MediaFormat // Keep for getEstimatedVideoBitrate
-import android.media.MediaMetadataRetriever // Keep for getEstimatedVideoBitrate
+import android.media.MediaFormat
 import android.net.Uri
 import android.os.Build
 import com.otaliastudios.transcoder.Transcoder
@@ -38,18 +36,22 @@ class TranscodingService : Service() {
     private lateinit var settingsManager: SettingsManager
 
     companion object {
-        const val TAG = "TranscodingService"
-        const val ACTION_START_TRANSCODING = "com.example.videotranscoder.action.START_TRANSCODING"
+        private const val TAG = "TranscodingService" // Corrected TAG definition
+        const val ACTION_START_TRANSCODING = "com.thingsapart.videopt.action.START_TRANSCODING" // Corrected action string prefix
         const val EXTRA_INPUT_VIDEO_URI = "extra_input_video_uri"
 
         const val NOTIFICATION_CHANNEL_ID = "TranscodingChannel"
         const val NOTIFICATION_ID = 1
 
-        const val ACTION_TRANSCODING_COMPLETE = "com.example.videotranscoder.action.TRANSCODING_COMPLETE"
-        const val ACTION_TRANSCODING_ERROR = "com.example.videotranscoder.action.TRANSCODING_ERROR"
+        const val ACTION_TRANSCODING_PROGRESS = "com.thingsapart.videopt.action.TRANSCODING_PROGRESS"
+        const val ACTION_TRANSCODING_COMPLETE = "com.thingsapart.videopt.action.TRANSCODING_COMPLETE"
+        const val ACTION_TRANSCODING_ERROR = "com.thingsapart.videopt.action.TRANSCODING_ERROR"
         const val EXTRA_OUTPUT_URI = "extra_output_uri"
-        const val EXTRA_OUTPUT_MIME_TYPE = "extra_output_mime_type" // New
+        const val EXTRA_OUTPUT_MIME_TYPE = "extra_output_mime_type"
         const val EXTRA_ERROR_MESSAGE = "extra_error_message"
+        const val EXTRA_PROGRESS = "extra_progress"
+        const val EXTRA_OUTPUT_VIDEO_SIZE = "com.thingsapart.videopt.extra.OUTPUT_VIDEO_SIZE"
+
 
         fun startTranscoding(context: Context, inputVideoUri: Uri) {
             val intent = Intent(context, TranscodingService::class.java).apply {
@@ -83,7 +85,9 @@ class TranscodingService : Service() {
             }
 
             val inputVideoUri = Uri.parse(inputVideoUriString)
-            val outputFileName = "transcoded_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())}.mp4" // Default to mp4 extension
+            // Use a timestamp and part of the original filename (if possible) for uniqueness
+            val originalFileName = inputVideoUri.lastPathSegment?.substringBeforeLast('.') ?: "video"
+            val outputFileName = "transcoded_${originalFileName}_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())}.mp4"
             val outputDir = File(cacheDir, "transcoded_videos")
             if (!outputDir.exists()) outputDir.mkdirs()
             val outputVideoPath = File(outputDir, outputFileName).absolutePath
@@ -93,107 +97,82 @@ class TranscodingService : Service() {
 
             serviceScope.launch {
                 try {
-                    // Load settings from SettingsManager
-                    val targetResolutionStr = settingsManager.loadResolution()
+                    val targetResolutionSetting = settingsManager.loadResolution()
                     val targetQuality = settingsManager.loadQuality()
                     val targetFrameRate = settingsManager.loadFrameRate()
-                    val targetAudioBitrateKbps = settingsManager.loadAudioBitrate()
+                    val targetAudioBitrateBps = settingsManager.loadAudioBitrate() // This is already in BPS
 
-                    // Video Strategy Setup
-                    val videoStrategyBuilder = com.otaliastudios.transcoder.strategy.DefaultVideoStrategy.Builder()
+                    val videoStrategyBuilder = DefaultVideoStrategy.Builder()
+                    val dimensions = settingsManager.parseResolutionValue(targetResolutionSetting)
 
-                    // Resolution Strategy
-                    if (targetResolutionStr == "Original") {
-                        videoStrategyBuilder.addResizer(com.otaliastudios.transcoder.resize.PassThroughResizer())
-                        Log.d(TAG, "Video Resolution: Original (PassThroughResizer)")
-                    } else {
-                        val resolutionPair = SettingsActivity.COMMON_RESOLUTIONS[targetResolutionStr]
-                        if (resolutionPair != null) {
-                            videoStrategyBuilder.addResizer(com.otaliastudios.transcoder.resize.ExactResizer(resolutionPair.first, resolutionPair.second))
-                            Log.d(TAG, "Video Resolution: ${resolutionPair.first}x${resolutionPair.second} (ExactResizer)")
+                    if (targetResolutionSetting.equals("Original", ignoreCase = true) || dimensions == null) {
+                        videoStrategyBuilder.addResizer(PassThroughResizer())
+                        if (dimensions == null && !targetResolutionSetting.equals("Original", ignoreCase = true)) {
+                            Log.w(TAG, "Could not parse resolution string '$targetResolutionSetting'. Defaulting to Original/PassThrough.")
                         } else {
-                            Log.w(TAG, "Unknown resolution string: $targetResolutionStr. Using library default sizing for video.")
+                            Log.d(TAG, "Video Resolution: Original (PassThroughResizer)")
                         }
+                    } else {
+                        videoStrategyBuilder.addResizer(ExactResizer(dimensions.first, dimensions.second))
+                        Log.d(TAG, "Video Resolution: ${dimensions.first}x${dimensions.second} (ExactResizer)")
                     }
 
-                    // Frame Rate for Video
                     if (targetFrameRate > 0) {
                         videoStrategyBuilder.frameRate(targetFrameRate)
                         Log.d(TAG, "Video Frame Rate: $targetFrameRate fps")
                     }
 
-                    // Bitrate for Video
-                    if (targetResolutionStr != "Original") {
-                        val resolutionPair = SettingsActivity.COMMON_RESOLUTIONS[targetResolutionStr]
-                        if (resolutionPair != null) {
-                            // getEstimatedVideoBitrate expects android.media.MediaFormat.MIMETYPE_VIDEO_AVC, etc.
-                            // For simplicity, we'll assume AVC for estimation if not original.
-                            // The actual output format of DefaultVideoStrategy defaults to H.264 (AVC).
-                            val estimatedBitrate = getEstimatedVideoBitrate(resolutionPair.first, resolutionPair.second, targetQuality, MediaFormat.MIMETYPE_VIDEO_AVC)
-                            if (estimatedBitrate > 0) {
-                                videoStrategyBuilder.bitRate(estimatedBitrate.toLong())
-                                Log.d(TAG, "Video Bitrate: $estimatedBitrate bps")
-                            }
+                    if (targetResolutionSetting.equals("Original", ignoreCase = true) || dimensions == null) {
+                        videoStrategyBuilder.bitRate(DefaultVideoStrategy.BITRATE_UNKNOWN)
+                         if (dimensions == null && !targetResolutionSetting.equals("Original", ignoreCase = true)) {
+                            Log.w(TAG, "Video Bitrate: Unknown (due to unparsed resolution '$targetResolutionSetting')")
                         } else {
-                            videoStrategyBuilder.bitRate(com.otaliastudios.transcoder.strategy.DefaultVideoStrategy.BITRATE_UNKNOWN)
-                            Log.d(TAG, "Video Bitrate: Unknown (due to unknown resolution)")
+                            Log.d(TAG, "Video Bitrate: AS_IS (for original resolution)")
                         }
                     } else {
-                        videoStrategyBuilder.bitRate(com.otaliastudios.transcoder.strategy.DefaultVideoStrategy.BITRATE_UNKNOWN)
-                        Log.d(TAG, "Video Bitrate: AS_IS (for original resolution)")
+                        val estimatedBitrate = getEstimatedVideoBitrate(dimensions.first, dimensions.second, targetQuality, MediaFormat.MIMETYPE_VIDEO_AVC)
+                        if (estimatedBitrate > 0) {
+                            videoStrategyBuilder.bitRate(estimatedBitrate.toLong())
+                            Log.d(TAG, "Video Bitrate: $estimatedBitrate bps for ${dimensions.first}x${dimensions.second}")
+                        } else {
+                             videoStrategyBuilder.bitRate(DefaultVideoStrategy.BITRATE_UNKNOWN) // Or BITRATE_AS_IS
+                             Log.w(TAG, "Video Bitrate: Unknown (estimation failed for ${dimensions.first}x${dimensions.second})")
+                        }
                     }
                     val videoTrackStrategy = videoStrategyBuilder.build()
 
-                    // Audio Strategy Setup
-                    val audioStrategyBuilder = com.otaliastudios.transcoder.strategy.DefaultAudioStrategy.builder()
-                    if (targetAudioBitrateKbps > 0) {
-                        audioStrategyBuilder.bitRate((targetAudioBitrateKbps * 1000).toLong())
-                        Log.d(TAG, "Audio Bitrate: ${targetAudioBitrateKbps * 1000} bps")
+                    val audioStrategyBuilder = DefaultAudioStrategy.builder()
+                    if (targetAudioBitrateBps > 0) {
+                        audioStrategyBuilder.bitRate(targetAudioBitrateBps.toLong()) // Already in BPS
+                        Log.d(TAG, "Audio Bitrate: $targetAudioBitrateBps bps")
                     } else {
-                        audioStrategyBuilder.bitRate(com.otaliastudios.transcoder.strategy.DefaultAudioStrategy.BITRATE_UNKNOWN)
+                        audioStrategyBuilder.bitRate(DefaultAudioStrategy.BITRATE_UNKNOWN)
                         Log.d(TAG, "Audio Bitrate: AS_IS")
                     }
                     val audioTrackStrategy = audioStrategyBuilder.build()
 
                     File(outputVideoPath).parentFile?.mkdirs()
 
-                    val listener = object : com.otaliastudios.transcoder.TranscoderListener {
+                    val listener = object : TranscoderListener {
                         override fun onTranscodeProgress(progress: Double) {
                             if (serviceJob.isActive) {
-                                if (progress >= 0 && progress <= 1.0) {
-                                   updateNotification("Transcoding: ${ (progress * 100).toInt() }%")
-                                } else if (progress > 1.0) { // Progress can sometimes slightly exceed 1.0
-                                   updateNotification("Transcoding: 100%")
-                                }
+                                val progressInt = (progress * 100).toInt()
+                                updateNotification("Transcoding: $progressInt%")
+                                sendProgressBroadcast(progressInt)
                             }
                         }
-
                         override fun onTranscodeCompleted(successCode: Int) {
                             if (serviceJob.isActive) {
                                 val outputUri = Uri.fromFile(File(outputVideoPath))
-                                // The library typically outputs MP4, so this is a safe assumption.
-                                // For more accuracy, one might inspect the file or have the strategy define it.
                                 val mimeType = "video/mp4"
-                                when (successCode) {
-                                    com.otaliastudios.transcoder.Transcoder.SUCCESS_TRANSCODED -> {
-                                        Log.i(TAG, "Transcoding successful (SUCCESS_TRANSCODED). Output: $outputVideoPath")
-                                        sendBroadcastResult(ACTION_TRANSCODING_COMPLETE, outputUri.toString(), outputMimeType = mimeType)
-                                    }
-                                    com.otaliastudios.transcoder.Transcoder.SUCCESS_NOT_NEEDED -> {
-                                        Log.i(TAG, "Transcoding not needed (SUCCESS_NOT_NEEDED). Output: $outputVideoPath")
-                                        // If not needed, the output path might be the input path or a copy.
-                                        // For simplicity, we assume outputVideoPath is correctly handled by the library.
-                                        sendBroadcastResult(ACTION_TRANSCODING_COMPLETE, outputUri.toString(), outputMimeType = mimeType)
-                                    }
-                                    else -> { // Should not happen based on current library codes
-                                         Log.w(TAG, "Transcoding completed with unknown successCode: $successCode. Output: $outputVideoPath")
-                                         sendBroadcastResult(ACTION_TRANSCODING_COMPLETE, outputUri.toString(), outputMimeType = mimeType)
-                                    }
-                                }
+                                val outputFile = File(outputVideoPath)
+                                val outputSizeBytes = if (outputFile.exists()) outputFile.length() else -1L
+                                val action = ACTION_TRANSCODING_COMPLETE
+                                sendBroadcastResult(action, outputUri.toString(), mimeType, null, outputSizeBytes)
+                                Log.i(TAG, "Transcoding finished with code $successCode. Output: $outputVideoPath, Size: $outputSizeBytes bytes")
                                 stopSelf()
                             }
                         }
-
                         override fun onTranscodeCanceled() {
                             if (serviceJob.isActive) {
                                 Log.w(TAG, "Transcoding Canceled")
@@ -202,33 +181,30 @@ class TranscodingService : Service() {
                                 stopSelf()
                             }
                         }
-
                         override fun onTranscodeFailed(exception: Throwable) {
                             if (serviceJob.isActive) {
-                                Log.e(TAG, "Transcoding Failed with deepmedia/Transcoder", exception)
+                                Log.e(TAG, "Transcoding Failed", exception)
                                 updateNotification("Transcoding error.")
-                                sendBroadcastResult(ACTION_TRANSCODING_ERROR, errorMessage = exception.localizedMessage ?: "Transcoding error from library.")
+                                sendBroadcastResult(ACTION_TRANSCODING_ERROR, errorMessage = exception.localizedMessage ?: "Transcoding error.")
                                 stopSelf()
                             }
                         }
                     }
 
                     updateNotification("Transcoding video...")
-                    com.otaliastudios.transcoder.Transcoder.into(outputVideoPath)
+                    Transcoder.into(outputVideoPath)
                         .addDataSource(applicationContext, inputVideoUri)
                         .setVideoTrackStrategy(videoTrackStrategy)
                         .setAudioTrackStrategy(audioTrackStrategy)
                         .setListener(listener)
                         .transcode()
-
                 } catch (e: Exception) {
                     if (serviceJob.isActive) {
-                        Log.e(TAG, "Error setting up transcoding with deepmedia/Transcoder", e)
+                        Log.e(TAG, "Error setting up transcoding", e)
                         sendBroadcastResult(ACTION_TRANSCODING_ERROR, errorMessage = "Setup error: ${e.localizedMessage}")
                         stopSelf()
                     }
                 }
-                // No finally block here to call stopSelf() because the listener handles terminal states.
             }
         } else {
             Log.w(TAG, "Unknown action or null intent. Stopping service.")
@@ -238,52 +214,58 @@ class TranscodingService : Service() {
     }
 
     private fun getEstimatedVideoBitrate(width: Int, height: Int, quality: String, mimeType: String): Int {
-        val targetPixels = width * height
-        val base720pPixels = 1280 * 720
+        val targetPixels = width * height.toLong() // Use Long to prevent overflow for large resolutions
+        val base720pPixels = 1280 * 720L
 
         var baseBitrate = when (mimeType) {
-            MediaFormat.MIMETYPE_VIDEO_HEVC -> 1_800_000
+            MediaFormat.MIMETYPE_VIDEO_HEVC -> 1_800_000 // H.265
             "video/vp9" -> 2_000_000
-            else -> 2_500_000 // Default for AVC
+            else -> 2_500_000 // Default for AVC (H.264)
         }
         baseBitrate = when (quality) {
             "High" -> (baseBitrate * 1.8).toInt()
-            "Low" -> (baseBitrate * 0.6).toInt()
+            "Low" -> (baseBitrate * 0.6).toInt() // Increased from 0.5 for slightly better low quality
             else -> baseBitrate // Medium
         }
+        // Ensure positive pixel counts to avoid division by zero or negative results
+        if (base720pPixels <= 0) return baseBitrate
         var estimatedBitrate = (baseBitrate * (targetPixels.toDouble() / base720pPixels)).toInt()
-        estimatedBitrate = estimatedBitrate.coerceIn(250_000, 15_000_000)
+        // Apply some sanity clamps, ensure min bitrate is reasonable e.g. 250kbps for video
+        estimatedBitrate = estimatedBitrate.coerceIn(250_000, 25_000_000) // Increased max clamp for 4K
         Log.d(TAG, "Service estimated video bitrate for res($width x $height), $quality, $mimeType: $estimatedBitrate bps")
         return estimatedBitrate
     }
 
-    private fun sendBroadcastResult(action: String, outputUriString: String? = null, outputMimeType: String? = null, errorMessage: String? = null) {
+    private fun sendBroadcastResult(action: String, outputUriString: String? = null, outputMimeType: String? = null, errorMessage: String? = null, outputSize: Long? = null) {
         val intent = Intent(action).setPackage(packageName)
         outputUriString?.let { intent.putExtra(EXTRA_OUTPUT_URI, it) }
         outputMimeType?.let { intent.putExtra(EXTRA_OUTPUT_MIME_TYPE, it) }
         errorMessage?.let { intent.putExtra(EXTRA_ERROR_MESSAGE, it) }
+        outputSize?.let { intent.putExtra(EXTRA_OUTPUT_VIDEO_SIZE, it) }
         sendBroadcast(intent)
-        Log.d(TAG, "Broadcast sent: $action, Output: $outputUriString, Mime: $outputMimeType, Error: $errorMessage")
+        Log.d(TAG, "Broadcast sent: $action, Output: $outputUriString, Mime: $outputMimeType, Size: $outputSize, Error: $errorMessage")
+    }
+
+    private fun sendProgressBroadcast(progress: Int) {
+        val intent = Intent(ACTION_TRANSCODING_PROGRESS).setPackage(packageName)
+        intent.putExtra(EXTRA_PROGRESS, progress)
+        sendBroadcast(intent)
     }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                NOTIFICATION_CHANNEL_ID,
-                "Video Transcoding",
-                NotificationManager.IMPORTANCE_LOW
-            )
+            val channel = NotificationChannel(NOTIFICATION_CHANNEL_ID, "Video Transcoding", NotificationManager.IMPORTANCE_LOW)
             notificationManager.createNotificationChannel(channel)
             Log.d(TAG, "Notification channel created.")
         }
      }
+
     private fun updateNotification(contentText: String) {
-        val notification = createNotification(contentText)
-        notificationManager.notify(NOTIFICATION_ID, notification)
+        notificationManager.notify(NOTIFICATION_ID, createNotification(contentText))
     }
 
     private fun createNotification(contentText: String): Notification {
-        val intent = Intent(this, MainActivity::class.java)
+        val intent = Intent(this, MainActivity::class.java) // Should open MainActivity or PreviewActivity
         val pendingIntentFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         } else {
@@ -297,15 +279,11 @@ class TranscodingService : Service() {
             @Suppress("DEPRECATION")
             Notification.Builder(this)
         }
-
-        return builder
-            .setContentTitle(getString(R.string.app_name))
-            .setContentText(contentText)
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentIntent(pendingIntent)
-            .setOngoing(true)
-            .build()
+        return builder.setContentTitle(getString(R.string.app_name))
+            .setContentText(contentText).setSmallIcon(R.mipmap.ic_launcher) // Ensure this icon exists
+            .setContentIntent(pendingIntent).setOngoing(true).build()
     }
+
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onDestroy() { super.onDestroy(); serviceJob.cancel(); Log.d(TAG, "Service destroyed"); }
 }

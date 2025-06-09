@@ -1,3 +1,27 @@
 <resources>
     <string name="app_name">VideOpt</string>
+    <string name="video_resolution_hint">Video Resolution</string>
+    <string name="add_custom_resolution_desc">Add custom resolution</string>
+    <string name="dialog_title_custom_resolution">Custom Resolution</string>
+    <string name="dialog_label_width">Width (px)</string>
+    <string name="dialog_label_height">Height (px)</string>
+    <string name="custom_resolution_format">Custom (%1$dx%2$d)</string>
+    <string name="error_invalid_resolution_value">Please enter a valid number greater than 0.</string>
+    <string name="video_thumbnail_content_description">Video thumbnail</string>
+    <string name="share_button_text_default">Share</string>
+
+    <string name="frame_rate_label">Frame Rate (fps)</string>
+    <string name="frame_rate_hint">Select or add frame rate</string>
+    <string name="add_custom_frame_rate_desc">Add custom frame rate</string>
+    <string name="dialog_title_custom_frame_rate">Custom Frame Rate</string>
+    <string name="dialog_label_frame_rate">Frame Rate (fps)</string>
+    <string name="error_invalid_frame_rate_value">Please enter a valid number greater than 0.</string>
+
+    <string name="audio_bitrate_label">Audio Bitrate</string>
+    <string name="audio_bitrate_hint">Select audio bitrate</string>
+    <string name="audio_bitrate_format_kbps">%1$d kbps</string> <!-- Used in code, not directly in layout -->
+
+    <string name="resolution_original_display_name">Original</string>
+    <string name="frame_rate_original_display_name">Original</string>
+    <string name="frame_rate_display_format">%1$s FPS</string>
 </resources>

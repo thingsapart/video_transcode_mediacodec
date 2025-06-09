@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark Theme Specific Colors -->
+    <color name="dark_background">#121212</color>
+    <color name="dark_surface">#1E1E1E</color>
+
+    <color name="dark_primary">#A5D6A7</color> <!-- Pastel Green for Dark Theme Primary -->
+    <color name="dark_primary_variant">#81C784</color> <!-- Slightly darker Pastel Green -->
+    <color name="dark_onPrimary">#003912</color>
+
+    <color name="dark_secondary">#CE93D8</color> <!-- Pastel Purple for Dark Theme Secondary -->
+    <color name="dark_secondary_variant">#B39DDB</color> <!-- Slightly darker Pastel Purple -->
+    <color name="dark_onSecondary">#3A0049</color>
+
+    <color name="dark_textColorPrimary">#E0E0E0</color>
+    <color name="dark_textColorSecondary">#BDBDBD</color>
+    <color name="dark_textColorHint">#9E9E9E</color>
+
+    <!-- Override light theme color names with dark theme values -->
+    <!-- Primary brand color -->
+    <color name="pastel_blue_dark">@color/dark_primary</color> <!-- Example: Using dark_primary for what was pastel_blue_dark -->
+    <color name="pastel_blue_light">@color/dark_primary_variant</color> <!-- Using a variant of dark_primary -->
+    <color name="text_color_primary_pastel">@color/dark_textColorPrimary</color> <!-- This will also be colorOnPrimary if not overridden -->
+
+    <!-- Secondary brand color -->
+    <color name="pastel_pink_dark">@color/dark_secondary</color> <!-- Example: Using dark_secondary -->
+    <color name="pastel_pink_light">@color/dark_secondary_variant</color>
+    <!-- text_color_primary_pastel is already mapped to dark_textColorPrimary, which serves as colorOnSecondary too -->
+
+    <!-- Backgrounds -->
+    <color name="background_pastel">@color/dark_background</color>
+    <color name="surface_pastel">@color/dark_surface</color> <!-- Ensure surface_pastel is defined in light theme too -->
+    <!-- colorOnBackground and colorOnSurface will use text_color_primary_pastel mapping -->
+
+    <!-- Text Colors (already mapped via text_color_primary_pastel etc.) -->
+    <color name="text_color_hint_pastel">@color/dark_textColorHint</color>
+
+    <!-- General purpose colors from light theme, if they need specific dark theme overrides and are used directly by layouts -->
+    <color name="white">@color/dark_surface</color> <!-- Example: if 'white' was used for surfaces, map it to dark_surface -->
+    <color name="black">@color/dark_textColorPrimary</color> <!-- Example: if 'black' was used for text, map to light text -->
+
+    <!-- Specific Pastel Accents - ensure these provide good contrast on dark_background/dark_surface -->
+    <color name="pastel_green_light">#81C784</color> <!-- Darker than dark_primary if dark_primary is a very light green -->
+    <color name="pastel_green_dark">@color/dark_primary</color>
+    <color name="pastel_yellow_light">#FFF59D</color>
+    <color name="pastel_yellow_dark">#FFEE58</color>
+    <color name="pastel_purple_light">#B39DDB</color>
+    <color name="pastel_purple_dark">@color/dark_secondary</color>
+    <color name="pastel_orange_light">#FFCC80</color>
+    <color name="pastel_orange_dark">#FFB74D</color>
+
+</resources>

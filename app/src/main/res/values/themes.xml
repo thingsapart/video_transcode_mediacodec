@@ -1,4 +1,113 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <style name="Theme.VideoTranscoder" parent="android:Theme.DeviceDefault.Light.NoActionBar">
+        <!-- This theme can be removed if PastelLollipop is the only one used -->
     </style>
+
+    <!-- Pastel Lollipop DayNight Theme -->
+    <style name="Theme.VideoTranscoder.PastelLollipop" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Primary brand color (Light Mode - will use values-night/colors.xml for Dark Mode) -->
+        <item name="colorPrimary">@color/pastel_blue_dark</item>
+        <item name="colorPrimaryContainer">@color/pastel_blue_light</item> <!-- M3 uses Container -->
+        <item name="colorOnPrimary">@color/text_color_primary_pastel</item>
+        <item name="colorOnPrimaryContainer">@color/text_color_primary_pastel</item>
+
+
+        <!-- Secondary brand color (Light Mode) -->
+        <item name="colorSecondary">@color/pastel_pink_dark</item>
+        <item name="colorSecondaryContainer">@color/pastel_pink_light</item> <!-- M3 uses Container -->
+        <item name="colorOnSecondary">@color/text_color_primary_pastel</item>
+        <item name="colorOnSecondaryContainer">@color/text_color_primary_pastel</item>
+
+        <!-- Tertiary accent color (Optional, good for M3) -->
+        <item name="colorTertiary">@color/pastel_green_dark</item>
+        <item name="colorTertiaryContainer">@color/pastel_green_light</item>
+        <item name="colorOnTertiary">@color/text_color_primary_pastel</item>
+        <item name="colorOnTertiaryContainer">@color/text_color_primary_pastel</item>
+
+        <!-- Error colors -->
+        <item name="colorError">@color/pastel_orange_dark</item> <!-- Example, define specific error colors if needed -->
+        <item name="colorErrorContainer">@color/pastel_orange_light</item>
+        <item name="colorOnError">@color/text_color_primary_pastel</item>
+        <item name="colorOnErrorContainer">@color/text_color_primary_pastel</item>
+
+        <!-- Status bar color. -->
+        <item name="android:statusBarColor" tools:targetApi="l">?attr/colorPrimaryContainer</item> <!-- Use colorPrimaryContainer or specific dark/light status bar colors -->
+        <item name="android:windowLightStatusBar" tools:targetApi="m">true</item> <!-- true for light status bar icons, false for dark -->
+
+
+        <!-- Backgrounds (Light Mode) -->
+        <item name="android:colorBackground">@color/background_pastel</item>
+        <item name="colorSurface">@color/surface_pastel</item>
+        <item name="colorOnBackground">@color/text_color_primary_pastel</item>
+        <item name="colorOnSurface">@color/text_color_primary_pastel</item>
+        <item name="colorSurfaceVariant">@color/pastel_purple_light</item> <!-- Example: for card backgrounds or outlined text field borders -->
+        <item name="colorOnSurfaceVariant">@color/text_color_secondary_pastel</item> <!-- For text on surfaceVariant -->
+        <item name="android:navigationBarColor">@color/surface_pastel</item> <!-- Or specific nav bar color -->
+
+
+        <!-- Text Colors (Light Mode) -->
+        <item name="android:textColorPrimary">@color/text_color_primary_pastel</item>
+        <item name="android:textColorSecondary">@color/text_color_secondary_pastel</item>
+        <item name="android:textColorHint">@color/text_color_hint_pastel</item>
+
+        <!-- Shape Appearances -->
+        <item name="shapeAppearanceSmallComponent">@style/ShapeAppearance.App.SmallComponent</item>
+        <item name="shapeAppearanceMediumComponent">@style/ShapeAppearance.App.MediumComponent</item>
+        <item name="shapeAppearanceLargeComponent">@style/ShapeAppearance.App.LargeComponent</item>
+
+        <!-- Specific component styles -->
+        <item name="materialCardViewStyle">@style/Widget.App.MaterialCardView</item>
+        <item name="materialButtonStyle">@style/Widget.App.Button</item>
+        <item name="textInputStyle">@style/Widget.App.TextInputLayout</item>
+        <item name="toolbarStyle">@style/Widget.App.Toolbar</item>
+        <!--item name="progressIndicatorStyle">@style/Widget.App.ProgressIndicator.Circular</item -->
+        <item name="linearProgressIndicatorStyle">@style/Widget.App.ProgressIndicator.Linear</item>
+
+    </style>
+
+    <!-- Shape Appearances -->
+    <style name="ShapeAppearance.App.SmallComponent" parent="ShapeAppearance.Material3.SmallComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">8dp</item>
+    </style>
+    <style name="ShapeAppearance.App.MediumComponent" parent="ShapeAppearance.Material3.MediumComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">12dp</item>
+    </style>
+    <style name="ShapeAppearance.App.LargeComponent" parent="ShapeAppearance.Material3.LargeComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">16dp</item>
+    </style>
+
+    <!-- Custom Component Styles -->
+    <style name="Widget.App.MaterialCardView" parent="Widget.Material3.CardView.Elevated">
+        <item name="cardElevation">2dp</item> <!-- Subtle elevation for light mode -->
+        <item name="shapeAppearance">?attr/shapeAppearanceMediumComponent</item>
+    </style>
+    <style name="Widget.App.Button" parent="Widget.Material3.Button">
+        <item name="shapeAppearance">?attr/shapeAppearanceSmallComponent</item>
+        <item name="android:paddingTop">12dp</item>
+        <item name="android:paddingBottom">12dp</item>
+    </style>
+    <style name="Widget.App.TextInputLayout" parent="Widget.Material3.TextInputLayout.OutlinedBox">
+         <item name="shapeAppearance">?attr/shapeAppearanceSmallComponent</item>
+    </style>
+
+    <style name="Widget.App.Toolbar" parent="Widget.Material3.Toolbar.Surface">
+        <item name="android:background">?attr/colorSurface</item>
+        <item name="titleTextColor">?attr/colorOnSurface</item>
+        <item name="subtitleTextColor">?attr/colorOnSurfaceVariant</item>
+    </style>
+
+    <style name="Widget.App.ProgressIndicator.Circular" parent="Widget.Material3.CircularProgressIndicator">
+        <item name="indicatorColor">?attr/colorPrimary</item>
+        <!-- <item name="trackColor">?attr/colorSurfaceVariant</item> --> <!-- M3 doesn't use trackColor for indeterminate circular -->
+    </style>
+    <style name="Widget.App.ProgressIndicator.Linear" parent="Widget.Material3.LinearProgressIndicator">
+        <item name="indicatorColor">?attr/colorPrimary</item>
+        <item name="trackColor">?attr/colorSurfaceVariant</item>
+        <item name="android:minHeight">8dp</item>
+        <item name="trackCornerRadius">@dimen/corner_radius_small</item> <!-- Changed to use defined dimen -->
+    </style>
+
 </resources>

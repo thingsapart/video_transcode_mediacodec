@@ -1,22 +1,85 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="16dp">
+    android:padding="16dp"
+    android:background="?android:colorBackground"
+    tools:context=".PreviewActivity">
 
-    <VideoView
-        android:id="@+id/video_view_preview"
+    <!-- This FrameLayout will contain the ImageView and VideoView -->
+    <!-- It's constrained to the space above textview_status -->
+    <FrameLayout
+        android:id="@+id/video_content_area"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_centerInParent="true"
-        android:layout_above="@+id/btn_share_transcoded"
-        android:layout_marginBottom="16dp"/>
+        android:layout_height="0dp"
+        android:layout_alignParentTop="true"
+        android:layout_above="@+id/textview_status"
+        android:layout_marginBottom="72dp">
 
-    <Button
-        android:id="@+id/btn_share_transcoded"
+        <ImageView
+            android:id="@+id/imageview_thumbnail"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitCenter"
+            android:adjustViewBounds="true"
+            android:visibility="visible"
+            android:contentDescription="@string/video_thumbnail_content_description"
+            tools:srcCompat="@tools:sample/backgrounds/scenic" />
+
+        <View
+            android:id="@+id/view_fade"
+            android:layout_width="match_parent"
+            android:layout_height="100dp"
+            android:layout_gravity="bottom"
+            android:background="@drawable/gradient_fade"
+            android:visibility="visible" />
+
+        <VideoView
+            android:id="@+id/video_view_preview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_gravity="center"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/textview_status"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Share Transcoded Video"
+        android:layout_above="@+id/progressbar_transcoding"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="8dp"
+        android:textAppearance="?attr/textAppearanceCaption"
+        android:textColor="?attr/colorOnBackground"
+        tools:text="Transcoding: 50%" />
+
+    <com.google.android.material.progressindicator.LinearProgressIndicator
+        android:id="@+id/progressbar_transcoding"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/btn_share_transcoded"
+        android:layout_marginStart="32dp"
+        android:layout_marginEnd="32dp"
+        android:layout_marginBottom="16dp"
+        android:indeterminate="false"
+        android:max="100"
+        tools:progress="50"/>
+        <!-- The style is applied via theme attribute linearProgressIndicatorStyle -->
+        <!-- app:indicatorColor and app:trackColor removed to rely on theme's style -->
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_share_transcoded"
+        style="@style/Widget.App.Button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
-        android:layout_centerHorizontal="true"/>
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="16dp"
+        android:text="@string/share_button_text_default"
+        android:visibility="invisible"
+        tools:text="Share (10.5 MB)"
+        tools:visibility="visible"/>
+
 </RelativeLayout>
