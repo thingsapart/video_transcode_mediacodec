@@ -7,11 +7,17 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.media.MediaCodecInfo
-import android.media.MediaFormat
-import android.media.MediaMetadataRetriever
+// MediaCodecInfo and MediaFormat might still be needed by getEstimatedVideoBitrate
+import android.media.MediaFormat // Keep for getEstimatedVideoBitrate
+import android.media.MediaMetadataRetriever // Keep for getEstimatedVideoBitrate
 import android.net.Uri
 import android.os.Build
+import io.deepmedia.transcoder.Transcoder
+import io.deepmedia.transcoder.TranscoderListener
+import io.deepmedia.transcoder.strategy.DefaultAudioStrategy
+import io.deepmedia.transcoder.strategy.DefaultVideoStrategy
+import io.deepmedia.transcoder.resizer.ExactResizer
+import io.deepmedia.transcoder.resizer.PassThroughResizer
 import android.os.IBinder
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
@@ -86,87 +92,143 @@ class TranscodingService : Service() {
             updateNotification("Preparing to transcode...")
 
             serviceScope.launch {
-                var finalOutputMimeType: String? = null
                 try {
-                    val targetVideoMimeUserSetting = settingsManager.loadFormat()
+                    // Load settings from SettingsManager
                     val targetResolutionStr = settingsManager.loadResolution()
                     val targetQuality = settingsManager.loadQuality()
                     val targetFrameRate = settingsManager.loadFrameRate()
                     val targetAudioBitrateKbps = settingsManager.loadAudioBitrate()
 
-                    // --- Create Target Video MediaFormat ---
-                    var actualTargetWidth: Int? = null
-                    var actualTargetHeight: Int? = null
+                    // Video Strategy Setup
+                    val videoStrategyBuilder = io.deepmedia.transcoder.strategy.DefaultVideoStrategy.builder()
 
+                    // Resolution Strategy
                     if (targetResolutionStr == "Original") {
-                        try {
-                            val retriever = MediaMetadataRetriever()
-                            retriever.setDataSource(applicationContext, inputVideoUri)
-                            actualTargetWidth = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull()
-                            actualTargetHeight = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull()
-                            retriever.release()
-                            if (actualTargetWidth == null || actualTargetHeight == null) {
-                                Log.w(TAG, "Could not get original WxH. Falling back to 720p equivalent for encoder.")
-                                actualTargetWidth = 1280
-                                actualTargetHeight = 720
-                            }
-                            Log.i(TAG, "Original resolution selected: $actualTargetWidth x $actualTargetHeight")
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Error retrieving original metadata, falling back for encoder dimensions", e)
-                            actualTargetWidth = 1280; actualTargetHeight = 720 // Fallback
-                        }
+                        videoStrategyBuilder.addResizer(io.deepmedia.transcoder.resizer.PassThroughResizer())
+                        Log.d(TAG, "Video Resolution: Original (PassThroughResizer)")
                     } else {
                         val resolutionPair = SettingsActivity.COMMON_RESOLUTIONS[targetResolutionStr]
                         if (resolutionPair != null) {
-                            actualTargetWidth = resolutionPair.first
-                            actualTargetHeight = resolutionPair.second
+                            videoStrategyBuilder.addResizer(io.deepmedia.transcoder.resizer.ExactResizer(resolutionPair.first, resolutionPair.second))
+                            Log.d(TAG, "Video Resolution: ${resolutionPair.first}x${resolutionPair.second} (ExactResizer)")
                         } else {
-                            Log.w(TAG, "Unknown resolution string: $targetResolutionStr. Falling back.")
-                            actualTargetWidth = 1280; actualTargetHeight = 720 // Fallback
+                            Log.w(TAG, "Unknown resolution string: $targetResolutionStr. Using library default sizing for video.")
                         }
                     }
 
-                    val videoFormat = MediaFormat.createVideoFormat(targetVideoMimeUserSetting, actualTargetWidth!!, actualTargetHeight!!)
-                    finalOutputMimeType = targetVideoMimeUserSetting // Store the actual MIME type used
+                    // Frame Rate for Video
+                    if (targetFrameRate > 0) {
+                        videoStrategyBuilder.frameRate(targetFrameRate)
+                        Log.d(TAG, "Video Frame Rate: $targetFrameRate fps")
+                    }
 
-                    // Now continue with other videoFormat settings:
-                    val estimatedVideoBitrate = getEstimatedVideoBitrate(actualTargetWidth, actualTargetHeight, targetQuality, targetVideoMimeUserSetting)
-                    videoFormat.setInteger(MediaFormat.KEY_BIT_RATE, estimatedVideoBitrate)
-                    videoFormat.setInteger(MediaFormat.KEY_FRAME_RATE, targetFrameRate)
-                    videoFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
-                    videoFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible)
+                    // Bitrate for Video
+                    if (targetResolutionStr != "Original") {
+                        val resolutionPair = SettingsActivity.COMMON_RESOLUTIONS[targetResolutionStr]
+                        if (resolutionPair != null) {
+                            // getEstimatedVideoBitrate expects android.media.MediaFormat.MIMETYPE_VIDEO_AVC, etc.
+                            // For simplicity, we'll assume AVC for estimation if not original.
+                            // The actual output format of DefaultVideoStrategy defaults to H.264 (AVC).
+                            val estimatedBitrate = getEstimatedVideoBitrate(resolutionPair.first, resolutionPair.second, targetQuality, MediaFormat.MIMETYPE_VIDEO_AVC)
+                            if (estimatedBitrate > 0) {
+                                videoStrategyBuilder.bitRate(estimatedBitrate.toLong())
+                                Log.d(TAG, "Video Bitrate: $estimatedBitrate bps")
+                            }
+                        } else {
+                            videoStrategyBuilder.bitRate(io.deepmedia.transcoder.strategy.DefaultVideoStrategy.BITRATE_UNKNOWN)
+                            Log.d(TAG, "Video Bitrate: Unknown (due to unknown resolution)")
+                        }
+                    } else {
+                        videoStrategyBuilder.bitRate(io.deepmedia.transcoder.strategy.DefaultVideoStrategy.BITRATE_AS_IS)
+                        Log.d(TAG, "Video Bitrate: AS_IS (for original resolution)")
+                    }
+                    val videoTrackStrategy = videoStrategyBuilder.build()
 
+                    // Audio Strategy Setup
+                    val audioStrategyBuilder = io.deepmedia.transcoder.strategy.DefaultAudioStrategy.builder()
+                    if (targetAudioBitrateKbps > 0) {
+                        audioStrategyBuilder.bitRate((targetAudioBitrateKbps * 1000).toLong())
+                        Log.d(TAG, "Audio Bitrate: ${targetAudioBitrateKbps * 1000} bps")
+                    } else {
+                        audioStrategyBuilder.bitRate(io.deepmedia.transcoder.strategy.DefaultAudioStrategy.BITRATE_AS_IS)
+                        Log.d(TAG, "Audio Bitrate: AS_IS")
+                    }
+                    val audioTrackStrategy = audioStrategyBuilder.build()
 
-                    // --- Create Target Audio MediaFormat ---
-                    val audioFormat = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, 44100, 2)
-                    audioFormat.setInteger(MediaFormat.KEY_BIT_RATE, targetAudioBitrateKbps * 1000)
+                    File(outputVideoPath).parentFile?.mkdirs()
 
-                    Log.d(TAG, "Prepared Target Video Format: $videoFormat")
-                    Log.d(TAG, "Prepared Target Audio Format: $audioFormat")
+                    val listener = object : io.deepmedia.transcoder.TranscoderListener {
+                        override fun onTranscodeProgress(progress: Double) {
+                            if (serviceJob.isActive) {
+                                if (progress >= 0 && progress <= 1.0) {
+                                   updateNotification("Transcoding: ${ (progress * 100).toInt() }%")
+                                } else if (progress > 1.0) { // Progress can sometimes slightly exceed 1.0
+                                   updateNotification("Transcoding: 100%")
+                                }
+                            }
+                        }
+
+                        override fun onTranscodeCompleted(successCode: Int) {
+                            if (serviceJob.isActive) {
+                                val outputUri = Uri.fromFile(File(outputVideoPath))
+                                // The library typically outputs MP4, so this is a safe assumption.
+                                // For more accuracy, one might inspect the file or have the strategy define it.
+                                val mimeType = "video/mp4"
+                                when (successCode) {
+                                    io.deepmedia.transcoder.Transcoder.SUCCESS_TRANSCODED -> {
+                                        Log.i(TAG, "Transcoding successful (SUCCESS_TRANSCODED). Output: $outputVideoPath")
+                                        sendBroadcastResult(ACTION_TRANSCODING_COMPLETE, outputUri.toString(), outputMimeType = mimeType)
+                                    }
+                                    io.deepmedia.transcoder.Transcoder.SUCCESS_NOT_NEEDED -> {
+                                        Log.i(TAG, "Transcoding not needed (SUCCESS_NOT_NEEDED). Output: $outputVideoPath")
+                                        // If not needed, the output path might be the input path or a copy.
+                                        // For simplicity, we assume outputVideoPath is correctly handled by the library.
+                                        sendBroadcastResult(ACTION_TRANSCODING_COMPLETE, outputUri.toString(), outputMimeType = mimeType)
+                                    }
+                                    else -> { // Should not happen based on current library codes
+                                         Log.w(TAG, "Transcoding completed with unknown successCode: $successCode. Output: $outputVideoPath")
+                                         sendBroadcastResult(ACTION_TRANSCODING_COMPLETE, outputUri.toString(), outputMimeType = mimeType)
+                                    }
+                                }
+                                stopSelf()
+                            }
+                        }
+
+                        override fun onTranscodeCanceled() {
+                            if (serviceJob.isActive) {
+                                Log.w(TAG, "Transcoding Canceled")
+                                updateNotification("Transcoding canceled.")
+                                sendBroadcastResult(ACTION_TRANSCODING_ERROR, errorMessage = "Transcoding canceled.")
+                                stopSelf()
+                            }
+                        }
+
+                        override fun onTranscodeFailed(exception: Throwable) {
+                            if (serviceJob.isActive) {
+                                Log.e(TAG, "Transcoding Failed with deepmedia/Transcoder", exception)
+                                updateNotification("Transcoding error.")
+                                sendBroadcastResult(ACTION_TRANSCODING_ERROR, errorMessage = exception.localizedMessage ?: "Transcoding error from library.")
+                                stopSelf()
+                            }
+                        }
+                    }
+
                     updateNotification("Transcoding video...")
-
-                    val videoTranscoder = VideoTranscoder(applicationContext)
-                    videoTranscoder.transcode(inputVideoUri, outputVideoPath, videoFormat, audioFormat)
-
-                    Log.i(TAG, "Transcoding successful. Output: $outputVideoPath")
-                    sendBroadcastResult(ACTION_TRANSCODING_COMPLETE, Uri.fromFile(File(outputVideoPath)).toString(), outputMimeType = finalOutputMimeType)
+                    io.deepmedia.transcoder.Transcoder.into(outputVideoPath)
+                        .addDataSource(applicationContext, inputVideoUri)
+                        .setVideoTrackStrategy(videoTrackStrategy)
+                        .setAudioTrackStrategy(audioTrackStrategy)
+                        .setListener(listener)
+                        .transcode()
 
                 } catch (e: Exception) {
-                    val currentVideoFormatDetails = "TargetFormat: ${targetVideoMimeUserSetting}, ${actualTargetWidth}x${actualTargetHeight}"
-                    val errorType = e.javaClass.simpleName
-                    val specificMessage = when (e) {
-                        is java.nio.BufferOverflowException -> "Buffer overflow. This often occurs if source video resolution is larger than target, and scaling is not applied. $currentVideoFormatDetails"
-                        is IllegalArgumentException, is IllegalStateException -> "Codec or parameter error. ${e.localizedMessage ?: ""} $currentVideoFormatDetails"
-                        is java.io.IOException -> "I/O error during transcoding. ${e.localizedMessage ?: ""} $currentVideoFormatDetails"
-                        else -> "Unexpected error: ${e.localizedMessage ?: "No specific details."} $currentVideoFormatDetails"
+                    if (serviceJob.isActive) {
+                        Log.e(TAG, "Error setting up transcoding with deepmedia/Transcoder", e)
+                        sendBroadcastResult(ACTION_TRANSCODING_ERROR, errorMessage = "Setup error: ${e.localizedMessage}")
+                        stopSelf()
                     }
-                    val finalErrorMessage = "$errorType: $specificMessage"
-                    Log.e(TAG, "Transcoding failed: $finalErrorMessage", e) // Log the original exception too
-                    sendBroadcastResult(ACTION_TRANSCODING_ERROR, errorMessage = finalErrorMessage)
-                } finally {
-                    Log.d(TAG, "Transcoding process finished. Stopping service.")
-                    stopSelf()
                 }
+                // No finally block here to call stopSelf() because the listener handles terminal states.
             }
         } else {
             Log.w(TAG, "Unknown action or null intent. Stopping service.")
