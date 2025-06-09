@@ -1,22 +1,123 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="16dp">
+    android:padding="16dp"
+    tools:context=".PreviewActivity">
 
-    <VideoView
-        android:id="@+id/video_view_preview"
-        android:layout_width="match_parent"
+    <!-- Video Thumbnail Area -->
+    <FrameLayout
+        android:id="@+id/thumbnail_container"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/controls_barrier"
+        app:layout_constraintVertical_chainStyle="packed"
+        app:layout_constraintVertical_bias="0.0"
+        android:layout_marginBottom="8dp">
+
+        <ImageView
+            android:id="@+id/image_thumbnail"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitCenter"
+            android:contentDescription="Video Thumbnail"
+            tools:srcCompat="@tools:sample/backgrounds/scenic" /> <!-- Placeholder image -->
+
+        <!-- Video Size Text -->
+        <TextView
+            android:id="@+id/text_video_size"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|end"
+            android:layout_margin="8dp"
+            android:padding="4dp"
+            android:background="#80000000" <!-- Semi-transparent background -->
+            android:textColor="@android:color/white"
+            tools:text="12.5 MB" />
+    </FrameLayout>
+
+    <!-- Barrier to position controls and progress below thumbnail area and above bottom button -->
+    <androidx.constraintlayout.widget.Barrier
+        android:id="@+id/controls_barrier"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_centerInParent="true"
-        android:layout_above="@+id/btn_share_transcoded"
-        android:layout_marginBottom="16dp"/>
+        app:barrierDirection="top"
+        app:constraint_referenced_ids="progress_bar_transcoding, video_controls_container" />
 
+    <!-- Video Controls (Play/Pause) -->
+    <LinearLayout
+        android:id="@+id/video_controls_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/progress_bar_transcoding"
+        android:layout_marginBottom="16dp" <!-- Increased margin -->
+        android:visibility="gone"
+        tools:visibility="visible"> <!-- tools:visibility for design preview -->
+
+        <ImageButton
+            android:id="@+id/button_play"
+            android:layout_width="56dp" <!-- Specific size -->
+            android:layout_height="56dp" <!-- Specific size -->
+            android:src="@drawable/ic_play_arrow_themed" <!-- Use themed icon -->
+            android:contentDescription="Play"
+            android:background="@drawable/bg_control_button_pastel"
+            android:padding="12dp" <!-- Adjust padding for icon size -->
+            android:scaleType="fitCenter"
+            android:layout_marginEnd="16dp"/>
+
+        <ImageButton
+            android:id="@+id/button_pause"
+            android:layout_width="56dp" <!-- Specific size -->
+            android:layout_height="56dp" <!-- Specific size -->
+            android:src="@drawable/ic_pause_themed" <!-- Use themed icon -->
+            android:contentDescription="Pause"
+            android:background="@drawable/bg_control_button_pastel"
+            android:padding="12dp" <!-- Adjust padding for icon size -->
+            android:scaleType="fitCenter"
+            android:visibility="gone"/> <!-- Initially hidden -->
+    </LinearLayout>
+
+    <!-- Progress Bar for Transcoding -->
+    <ProgressBar
+        android:id="@+id/progress_bar_transcoding"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/text_status_info"
+        android:layout_marginBottom="4dp"
+        android:max="100"
+        tools:progress="50" />
+
+    <!-- Status Text -->
+    <TextView
+        android:id="@+id/text_status_info"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/btn_share_transcoded"
+        android:layout_marginBottom="16dp"
+        android:gravity="center"
+        tools:text="Transcoding: 50%" />
+
+    <!-- Share Button -->
     <Button
         android:id="@+id/btn_share_transcoded"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Share Transcoded Video"
-        android:layout_alignParentBottom="true"
-        android:layout_centerHorizontal="true"/>
-</RelativeLayout>
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

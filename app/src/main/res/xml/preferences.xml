@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory
+        app:title="Video Settings"
+        app:iconSpaceReserved="false">
+
+        <ListPreference
+            app:key="pref_format"
+            app:title="Video Format"
+            app:summary="%s"
+            app:useSimpleSummaryProvider="true"
+            app:dialogTitle="Select Video Format"
+            app:iconSpaceReserved="false" />
+
+        <ListPreference
+            app:key="pref_resolution"
+            app:title="Video Resolution"
+            app:summary="%s"
+            app:useSimpleSummaryProvider="true"
+            app:dialogTitle="Select Video Resolution"
+            app:iconSpaceReserved="false" />
+
+        <ListPreference
+            app:key="pref_quality"
+            app:title="Video Quality"
+            app:summary="%s"
+            app:useSimpleSummaryProvider="true"
+            app:dialogTitle="Select Video Quality"
+            app:entries="@array/quality_entries"
+            app:entryValues="@array/quality_entry_values"
+            app:defaultValue="${SettingsManager.DEFAULT_QUALITY}"
+            app:iconSpaceReserved="false" />
+
+        <EditTextPreference
+            app:key="pref_frame_rate"
+            app:title="Frame Rate (fps)"
+            app:summary="%s"
+            app:useSimpleSummaryProvider="true"
+            app:dialogTitle="Set Frame Rate"
+            android:inputType="number"
+            app:defaultValue="${SettingsManager.DEFAULT_FRAME_RATE}"
+            app:iconSpaceReserved="false" />
+
+        <EditTextPreference
+            app:key="pref_audio_bitrate"
+            app:title="Audio Bitrate (kbps)"
+            app:summary="%s"
+            app:useSimpleSummaryProvider="true"
+            app:dialogTitle="Set Audio Bitrate"
+            android:inputType="number"
+            app:defaultValue="${SettingsManager.DEFAULT_AUDIO_BITRATE}"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:title="Information"
+        app:iconSpaceReserved="false">
+        <Preference
+            app:key="pref_estimated_size"
+            app:title="Estimated Size per Minute"
+            app:summary="N/A"
+            app:selectable="false"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+
+</PreferenceScreen>

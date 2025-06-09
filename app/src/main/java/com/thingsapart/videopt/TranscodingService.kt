@@ -39,11 +39,13 @@ class TranscodingService : Service() {
         const val NOTIFICATION_CHANNEL_ID = "TranscodingChannel"
         const val NOTIFICATION_ID = 1
 
+        const val ACTION_TRANSCODING_PROGRESS = "com.example.videotranscoder.action.TRANSCODING_PROGRESS" // New
         const val ACTION_TRANSCODING_COMPLETE = "com.example.videotranscoder.action.TRANSCODING_COMPLETE"
         const val ACTION_TRANSCODING_ERROR = "com.example.videotranscoder.action.TRANSCODING_ERROR"
         const val EXTRA_OUTPUT_URI = "extra_output_uri"
         const val EXTRA_OUTPUT_MIME_TYPE = "extra_output_mime_type" // New
         const val EXTRA_ERROR_MESSAGE = "extra_error_message"
+        const val EXTRA_PROGRESS = "extra_progress" // New
 
         fun startTranscoding(context: Context, inputVideoUri: Uri) {
             val intent = Intent(context, TranscodingService::class.java).apply {
@@ -82,7 +84,7 @@ class TranscodingService : Service() {
             val outputVideoPath = File(outputDir, outputFileName).absolutePath
 
             Log.d(TAG, "Starting transcoding for: $inputVideoUri to $outputVideoPath")
-            startForeground(NOTIFICATION_ID, createNotification("Preparing to transcode..."))
+            startForeground(NOTIFICATION_ID, createNotification("Preparing to transcode...", 0))
 
             serviceScope.launch {
                 var finalOutputMimeType: String? = null
@@ -141,16 +143,25 @@ class TranscodingService : Service() {
 
                     Log.d(TAG, "Prepared Target Video Format: $videoFormat")
                     Log.d(TAG, "Prepared Target Audio Format: $audioFormat")
-                    updateNotification("Transcoding video...")
+                    updateNotification("Transcoding video...", 0)
 
                     val videoTranscoder = VideoTranscoder(applicationContext)
-                    videoTranscoder.transcode(inputVideoUri, outputVideoPath, videoFormat, audioFormat)
+                    videoTranscoder.transcode(inputVideoUri, outputVideoPath, videoFormat, audioFormat,
+                        onProgress = { progress ->
+                            // Update notification and send broadcast with progress
+                            updateNotification("Transcoding: $progress%", progress)
+                            sendProgressBroadcast(progress)
+                            Log.d(TAG, "Transcoding progress: $progress%")
+                        }
+                    )
 
                     Log.i(TAG, "Transcoding successful. Output: $outputVideoPath")
+                    updateNotification("Transcoding complete", 100)
                     sendBroadcastResult(ACTION_TRANSCODING_COMPLETE, Uri.fromFile(File(outputVideoPath)).toString(), outputMimeType = finalOutputMimeType)
 
                 } catch (e: Exception) {
                     Log.e(TAG, "Transcoding failed", e)
+                    updateNotification("Transcoding error", -1)
                     sendBroadcastResult(ACTION_TRANSCODING_ERROR, errorMessage = e.message ?: "Unknown transcoding error")
                 } finally {
                     Log.d(TAG, "Transcoding process finished. Stopping service.")
@@ -204,14 +215,21 @@ class TranscodingService : Service() {
             Log.d(TAG, "Notification channel created.")
         }
      }
-    private fun updateNotification(contentText: String) {
-        val notification = createNotification(contentText)
+
+    private fun sendProgressBroadcast(progress: Int) {
+        val intent = Intent(ACTION_TRANSCODING_PROGRESS).setPackage(packageName)
+        intent.putExtra(EXTRA_PROGRESS, progress)
+        sendBroadcast(intent)
+    }
+
+    private fun updateNotification(contentText: String, progress: Int) {
+        val notification = createNotification(contentText, progress)
         notificationManager.notify(NOTIFICATION_ID, notification)
     }
 
-    private fun createNotification(contentText: String): Notification {
-        val intent = Intent(this, MainActivity::class.java)
-        val pendingIntentFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+    private fun createNotification(contentText: String, progress: Int): Notification {
+        val intent = Intent(this, MainActivity::class.java) // Or PreviewActivity if more appropriate
+         val pendingIntentFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         } else {
             PendingIntent.FLAG_UPDATE_CURRENT
@@ -228,10 +246,19 @@ class TranscodingService : Service() {
         return builder
             .setContentTitle(getString(R.string.app_name))
             .setContentText(contentText)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.mipmap.ic_launcher) // Replace with a proper transcoding icon
             .setContentIntent(pendingIntent)
             .setOngoing(true)
-            .build()
+            .setOnlyAlertOnce(true) // Avoid repeated sounds/vibrations for progress updates
+
+            if (progress >= 0 && progress <= 100) {
+                builder.setProgress(100, progress, false)
+            } else if (progress == -1) { // Error state
+                 builder.setProgress(0,0,false) // Clear progress or indicate error
+            }
+
+
+            return builder.build()
     }
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onDestroy() { super.onDestroy(); serviceJob.cancel(); Log.d(TAG, "Service destroyed"); }
