@@ -117,13 +117,15 @@ class TranscodingService : Service() {
                             actualTargetWidth = 1280; actualTargetHeight = 720 // Fallback
                         }
                     } else {
-                        val resolutionPair = SettingsActivity.COMMON_RESOLUTIONS[targetResolutionStr]
+                        // Use SettingsFragment.COMMON_RESOLUTIONS
+                        val resolutionPair = SettingsFragment.COMMON_RESOLUTIONS[targetResolutionStr]
                         if (resolutionPair != null) {
                             actualTargetWidth = resolutionPair.first
                             actualTargetHeight = resolutionPair.second
                         } else {
-                            Log.w(TAG, "Unknown resolution string: $targetResolutionStr. Falling back.")
-                            actualTargetWidth = 1280; actualTargetHeight = 720 // Fallback
+                            Log.w(TAG, "Unknown resolution string: $targetResolutionStr. Falling back to 1280x720.")
+                            actualTargetWidth = 1280
+                            actualTargetHeight = 720
                         }
                     }
 
