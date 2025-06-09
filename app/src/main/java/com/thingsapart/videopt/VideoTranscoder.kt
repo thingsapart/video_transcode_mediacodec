@@ -25,7 +25,8 @@ class VideoTranscoder(private val context: Context) {
         inputVideoUri: Uri,
         outputFilePath: String,
         targetVideoFormat: MediaFormat,
-        targetAudioFormat: MediaFormat
+        targetAudioFormat: MediaFormat,
+        onProgress: (progress: Int) -> Unit // Added progress callback
     ) = withContext(Dispatchers.IO) {
         Log.i(TAG, "Transcode START - Input: $inputVideoUri, Output: $outputFilePath")
         Log.d(TAG, "Target Video: $targetVideoFormat")
@@ -55,6 +56,7 @@ class VideoTranscoder(private val context: Context) {
         var audioEncoderDone = false
 
         var muxerStarted = false
+        var videoDurationUs: Long = 0 // For progress calculation
 
         try {
             extractor = MediaExtractor()
@@ -67,7 +69,8 @@ class VideoTranscoder(private val context: Context) {
                 val mime = format.getString(MediaFormat.KEY_MIME)
                 if (mime?.startsWith("video/") == true && inputVideoTrackIndex == -1) {
                     inputVideoTrackIndex = i
-                    Log.d(TAG, "Input Video Track: index=$i, format=$format")
+                    videoDurationUs = format.getLong(MediaFormat.KEY_DURATION, 0L) // Get video duration
+                    Log.d(TAG, "Input Video Track: index=$i, format=$format, duration=$videoDurationUs us")
                 } else if (mime?.startsWith("audio/") == true && inputAudioTrackIndex == -1) {
                     inputAudioTrackIndex = i
                     Log.d(TAG, "Input Audio Track: index=$i, format=$format")
@@ -114,6 +117,7 @@ class VideoTranscoder(private val context: Context) {
             // Video Processing Pass
             Log.d(TAG, "Starting Video Processing Pass")
             extractor.selectTrack(inputVideoTrackIndex) // Select video track for reading
+            var lastReportedProgress = 0
             while (!videoEncoderDone) {
                 // Feed video decoder
                 if (!videoExtractorDone) {
@@ -173,6 +177,16 @@ class VideoTranscoder(private val context: Context) {
                         encOutBuffer.limit(videoBufferInfo.offset + videoBufferInfo.size)
                         muxer.writeSampleData(muxerVideoTrackIndex, encOutBuffer, videoBufferInfo)
                         videoEncoder.releaseOutputBuffer(encOutIdx, false)
+
+                        // PROGRESS REPORTING (Video-centric)
+                        if (videoDurationUs > 0 && videoBufferInfo.presentationTimeUs > 0) {
+                            val currentProgress = ((videoBufferInfo.presentationTimeUs * 100L) / videoDurationUs).toInt()
+                            if (currentProgress > lastReportedProgress && currentProgress <= 100) {
+                                onProgress(currentProgress)
+                                lastReportedProgress = currentProgress
+                                Log.v(TAG, "Video Progress: $currentProgress%")
+                            }
+                        }
                     }
                 } else if (encOutIdx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
                     val newFormat = videoEncoder.outputFormat
@@ -188,8 +202,12 @@ class VideoTranscoder(private val context: Context) {
                 }
             }
             Log.d(TAG, "Video Processing Pass COMPLETED.")
+            if (lastReportedProgress < 100 && videoDurationUs > 0) { // Ensure 100% is reported if EOS is reached
+                onProgress(100)
+            }
 
             // Audio Processing Pass
+            // (largely unchanged, just ensure it doesn't interfere with final progress)
             if (inputAudioTrackIndex != -1) {
                 Log.d(TAG, "Starting Audio Processing Pass")
                 extractor.unselectTrack(inputVideoTrackIndex)

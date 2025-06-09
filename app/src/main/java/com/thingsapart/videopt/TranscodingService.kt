@@ -39,11 +39,13 @@ class TranscodingService : Service() {
         const val NOTIFICATION_CHANNEL_ID = "TranscodingChannel"
         const val NOTIFICATION_ID = 1
 
+        const val ACTION_TRANSCODING_PROGRESS = "com.example.videotranscoder.action.TRANSCODING_PROGRESS" // New
         const val ACTION_TRANSCODING_COMPLETE = "com.example.videotranscoder.action.TRANSCODING_COMPLETE"
         const val ACTION_TRANSCODING_ERROR = "com.example.videotranscoder.action.TRANSCODING_ERROR"
         const val EXTRA_OUTPUT_URI = "extra_output_uri"
         const val EXTRA_OUTPUT_MIME_TYPE = "extra_output_mime_type" // New
         const val EXTRA_ERROR_MESSAGE = "extra_error_message"
+        const val EXTRA_PROGRESS = "extra_progress" // New
 
         fun startTranscoding(context: Context, inputVideoUri: Uri) {
             val intent = Intent(context, TranscodingService::class.java).apply {
@@ -63,7 +65,9 @@ class TranscodingService : Service() {
         settingsManager = SettingsManager(applicationContext)
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         createNotificationChannel()
-        Log.d(TAG, "Service created")
+        Log.d(TAG, "Service created. Starting foreground with initial notification.")
+        // Call startForeground() here with a generic notification
+        startForeground(NOTIFICATION_ID, createNotification(getString(R.string.transcoding_service_initializing_status), 0, true)) // isIndeterminate = true initially
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -81,8 +85,11 @@ class TranscodingService : Service() {
             if (!outputDir.exists()) outputDir.mkdirs()
             val outputVideoPath = File(outputDir, outputFileName).absolutePath
 
-            Log.d(TAG, "Starting transcoding for: $inputVideoUri to $outputVideoPath")
-            startForeground(NOTIFICATION_ID, createNotification("Preparing to transcode..."))
+            Log.d(TAG, "onStartCommand: Starting transcoding for: $inputVideoUri to $outputVideoPath")
+            // Initial startForeground call is now in onCreate().
+            // Update notification to indicate actual processing is starting.
+            updateNotification(getString(R.string.transcoding_service_preparing_status, inputVideoUri.lastPathSegment ?: "video"), 0)
+
 
             serviceScope.launch {
                 var finalOutputMimeType: String? = null
@@ -115,13 +122,15 @@ class TranscodingService : Service() {
                             actualTargetWidth = 1280; actualTargetHeight = 720 // Fallback
                         }
                     } else {
-                        val resolutionPair = SettingsActivity.COMMON_RESOLUTIONS[targetResolutionStr]
+                        // Use SettingsFragment.COMMON_RESOLUTIONS
+                        val resolutionPair = SettingsFragment.COMMON_RESOLUTIONS[targetResolutionStr]
                         if (resolutionPair != null) {
                             actualTargetWidth = resolutionPair.first
                             actualTargetHeight = resolutionPair.second
                         } else {
-                            Log.w(TAG, "Unknown resolution string: $targetResolutionStr. Falling back.")
-                            actualTargetWidth = 1280; actualTargetHeight = 720 // Fallback
+                            Log.w(TAG, "Unknown resolution string: $targetResolutionStr. Falling back to 1280x720.")
+                            actualTargetWidth = 1280
+                            actualTargetHeight = 720
                         }
                     }
 
@@ -141,16 +150,26 @@ class TranscodingService : Service() {
 
                     Log.d(TAG, "Prepared Target Video Format: $videoFormat")
                     Log.d(TAG, "Prepared Target Audio Format: $audioFormat")
-                    updateNotification("Transcoding video...")
+                    // Update notification before starting actual transcoding
+                    updateNotification(getString(R.string.transcoding_service_progress_status, 0), 0)
+
 
                     val videoTranscoder = VideoTranscoder(applicationContext)
-                    videoTranscoder.transcode(inputVideoUri, outputVideoPath, videoFormat, audioFormat)
+                    videoTranscoder.transcode(inputVideoUri, outputVideoPath, videoFormat, audioFormat,
+                        onProgress = { progress ->
+                            updateNotification(getString(R.string.transcoding_service_progress_status, progress), progress)
+                            sendProgressBroadcast(progress)
+                            Log.d(TAG, "Transcoding progress: $progress%")
+                        }
+                    )
 
                     Log.i(TAG, "Transcoding successful. Output: $outputVideoPath")
+                    updateNotification(getString(R.string.transcoding_service_complete_status), 100)
                     sendBroadcastResult(ACTION_TRANSCODING_COMPLETE, Uri.fromFile(File(outputVideoPath)).toString(), outputMimeType = finalOutputMimeType)
 
                 } catch (e: Exception) {
                     Log.e(TAG, "Transcoding failed", e)
+                    updateNotification(getString(R.string.transcoding_service_error_status), -1) // Use -1 for error progress state
                     sendBroadcastResult(ACTION_TRANSCODING_ERROR, errorMessage = e.message ?: "Unknown transcoding error")
                 } finally {
                     Log.d(TAG, "Transcoding process finished. Stopping service.")
@@ -204,12 +223,20 @@ class TranscodingService : Service() {
             Log.d(TAG, "Notification channel created.")
         }
      }
-    private fun updateNotification(contentText: String) {
-        val notification = createNotification(contentText)
+
+    private fun sendProgressBroadcast(progress: Int) {
+        val intent = Intent(ACTION_TRANSCODING_PROGRESS).setPackage(packageName)
+        intent.putExtra(EXTRA_PROGRESS, progress)
+        sendBroadcast(intent)
+    }
+
+    private fun updateNotification(contentText: String, progress: Int, isIndeterminate: Boolean = false) {
+        val notification = createNotification(contentText, progress, isIndeterminate)
         notificationManager.notify(NOTIFICATION_ID, notification)
     }
 
-    private fun createNotification(contentText: String): Notification {
+    // Modified createNotification to accept an isIndeterminate flag
+    private fun createNotification(contentText: String, progress: Int, isIndeterminate: Boolean = false): Notification {
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntentFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
@@ -228,10 +255,19 @@ class TranscodingService : Service() {
         return builder
             .setContentTitle(getString(R.string.app_name))
             .setContentText(contentText)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.mipmap.ic_launcher) // Replace with a proper transcoding icon
             .setContentIntent(pendingIntent)
             .setOngoing(true)
-            .build()
+            .setOnlyAlertOnce(true)
+
+        if (isIndeterminate) {
+            builder.setProgress(0, 0, true) // Indeterminate progress
+        } else if (progress >= 0 && progress <= 100) {
+            builder.setProgress(100, progress, false) // Determinate progress
+        } else if (progress == -1) { // Error state
+            builder.setProgress(0, 0, false) // Clear progress or indicate error
+        }
+        return builder.build()
     }
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onDestroy() { super.onDestroy(); serviceJob.cancel(); Log.d(TAG, "Service destroyed"); }

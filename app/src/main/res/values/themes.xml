@@ -1,4 +1,28 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Theme.VideoTranscoder.AppTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Primary brand color. -->
+        <item name="colorPrimary">@color/pastel_primary</item>
+        <item name="colorPrimaryVariant">@color/pastel_primary_variant</item>
+        <item name="colorOnPrimary">@color/pastel_on_primary</item>
+        <!-- Secondary brand color. -->
+        <item name="colorSecondary">@color/pastel_secondary</item>
+        <item name="colorSecondaryVariant">@color/pastel_secondary_variant</item>
+        <item name="colorOnSecondary">@color/pastel_on_secondary</item>
+        <!-- Status bar color. -->
+        <item name="android:statusBarColor" tools:targetApi="l">?attr/colorPrimaryVariant</item>
+        <!-- Background color. -->
+        <item name="android:colorBackground">@color/pastel_background</item>
+        <item name="colorSurface">@color/pastel_surface</item>
+        <item name="colorError">@color/pastel_error</item>
+        <!-- Text/icon colors on backgrounds -->
+        <item name="colorOnBackground">@color/pastel_on_background</item>
+        <item name="colorOnSurface">@color/pastel_on_surface</item>
+        <item name="colorOnError">@color/pastel_on_error</item>
+        <!-- Customize your theme here. -->
+    </style>
+
+    <!-- Keep the old theme for reference or remove if not needed -->
     <style name="Theme.VideoTranscoder" parent="android:Theme.DeviceDefault.Light.NoActionBar">
     </style>
 </resources>

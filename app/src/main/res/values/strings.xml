@@ -1,3 +1,31 @@
 <resources>
     <string name="app_name">VideOpt</string>
+
+    <string name="preview_activity_title">Preview &amp; Transcode</string>
+    <string name="transcoding_complete_status">Transcoding complete!</string>
+    <string name="error_output_file_not_found">Error: Output file not found.</string>
+    <string name="error_transcoding_message">Error: %s</string>
+    <string name="unknown_error">Unknown error</string>
+    <string name="error_input_video_not_specified">Error: Input video not specified.</string>
+    <string name="starting_transcoding_status">Starting transcoding…</string>
+    <string name="size_not_available">Size N/A</string>
+    <string name="video_not_ready_error">Video not ready or error in transcoding.</string>
+    <string name="error_preparing_video_playback">Error preparing video for playback.</string>
+    <string name="no_app_to_play_video">No app found to play this video.</string>
+    <string name="video_not_ready_for_sharing">Video is not ready for sharing.</string>
+    <string name="error_preparing_video_for_sharing">Error preparing video for sharing.</string>
+    <string name="share_video_title">Share Transcoded Video</string>
+    <string name="no_app_to_share_video">No app found to handle sharing video.</string>
+
+    <!-- Strings for notification permission handling in PreviewActivity -->
+    <string name="notification_permission_denied_message">Notification permission denied. Transcoding status updates may not be shown reliably.</string>
+    <string name="notification_permission_required_status">Notification permission is required to show transcoding progress. Please grant the permission via App Settings if you wish to see progress updates.</string>
+    <string name="notification_permission_pending_status">Waiting for notification permission...</string>
+
+    <!-- Strings for TranscodingService notifications -->
+    <string name="transcoding_service_initializing_status">Initializing transcoding service…</string>
+    <string name="transcoding_service_preparing_status">Preparing to transcode: %s</string>
+    <string name="transcoding_service_progress_status">Transcoding: %d%%</string>
+    <string name="transcoding_service_complete_status">Transcoding complete</string>
+    <string name="transcoding_service_error_status">Transcoding error</string>
 </resources>
