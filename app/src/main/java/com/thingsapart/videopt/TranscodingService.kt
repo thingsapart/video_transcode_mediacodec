@@ -68,6 +68,7 @@ class TranscodingService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_START_TRANSCODING) {
+            startForeground(NOTIFICATION_ID, createNotification("Starting transcoding..."))
             val inputVideoUriString = intent.getStringExtra(EXTRA_INPUT_VIDEO_URI)
             if (inputVideoUriString == null) {
                 Log.e(TAG, "Missing input URI. Stopping service.")
@@ -82,7 +83,7 @@ class TranscodingService : Service() {
             val outputVideoPath = File(outputDir, outputFileName).absolutePath
 
             Log.d(TAG, "Starting transcoding for: $inputVideoUri to $outputVideoPath")
-            startForeground(NOTIFICATION_ID, createNotification("Preparing to transcode..."))
+            updateNotification("Preparing to transcode...")
 
             serviceScope.launch {
                 var finalOutputMimeType: String? = null
