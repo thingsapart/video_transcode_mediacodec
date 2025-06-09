@@ -123,7 +123,7 @@ class TranscodingService : Service() {
                     }
 
                     if (targetResolutionSetting.equals("Original", ignoreCase = true) || dimensions == null) {
-                        videoStrategyBuilder.bitRate(DefaultVideoStrategy.BITRATE_AS_IS)
+                        videoStrategyBuilder.bitRate(DefaultVideoStrategy.BITRATE_UNKNOWN)
                          if (dimensions == null && !targetResolutionSetting.equals("Original", ignoreCase = true)) {
                             Log.w(TAG, "Video Bitrate: Unknown (due to unparsed resolution '$targetResolutionSetting')")
                         } else {
@@ -146,7 +146,7 @@ class TranscodingService : Service() {
                         audioStrategyBuilder.bitRate(targetAudioBitrateBps.toLong()) // Already in BPS
                         Log.d(TAG, "Audio Bitrate: $targetAudioBitrateBps bps")
                     } else {
-                        audioStrategyBuilder.bitRate(DefaultAudioStrategy.BITRATE_AS_IS)
+                        audioStrategyBuilder.bitRate(DefaultAudioStrategy.BITRATE_UNKNOWN)
                         Log.d(TAG, "Audio Bitrate: AS_IS")
                     }
                     val audioTrackStrategy = audioStrategyBuilder.build()

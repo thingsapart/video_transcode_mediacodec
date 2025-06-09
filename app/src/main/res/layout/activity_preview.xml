@@ -16,7 +16,7 @@
         android:layout_height="0dp"
         android:layout_alignParentTop="true"
         android:layout_above="@+id/textview_status"
-        android:layout_marginBottom="72dp"> <!-- Increased margin to prevent MediaController overlap -->
+        android:layout_marginBottom="72dp">
 
         <ImageView
             android:id="@+id/imageview_thumbnail"
@@ -34,14 +34,14 @@
             android:layout_height="100dp"
             android:layout_gravity="bottom"
             android:background="@drawable/gradient_fade"
-            android:visibility="visible" /> <!-- Visibility will be controlled by PreviewActivity.kt -->
+            android:visibility="visible" />
 
         <VideoView
             android:id="@+id/video_view_preview"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:layout_gravity="center"
-            android:visibility="gone" /> <!-- Visibility will be controlled by PreviewActivity.kt -->
+            android:visibility="gone" />
     </FrameLayout>
 
     <TextView
@@ -71,12 +71,12 @@
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btn_share_transcoded"
-        style="@style/Widget.App.Button" <!-- Applied style -->
+        style="@style/Widget.App.Button"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
         android:layout_centerHorizontal="true"
-        android:layout_marginBottom="16dp" <!-- Adjusted margin from 32dp to 16dp to match others -->
+        android:layout_marginBottom="16dp"
         android:text="@string/share_button_text_default"
         android:visibility="invisible"
         tools:text="Share (10.5 MB)"

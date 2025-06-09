@@ -111,10 +111,13 @@ class SettingsActivity : Activity() {
         qualityAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, currentQualityDisplayNames)
         spinnerQuality.setAdapter(qualityAdapter)
 
+        Log.d(TAG, "onCreate: Spinners.")
+
         setupSpinners()
         queryCodecCapabilities()
         loadSettings()
         setupListeners()
+
         Log.d(TAG, "onCreate: UI initialized and listeners set up with corrected order.")
     }
 
@@ -215,8 +218,8 @@ class SettingsActivity : Activity() {
             }
         })
 
-        resolutionAdapter?.clear()
-        resolutionAdapter?.addAll(currentResolutionDisplayNames)
+        //resolutionAdapter?.clear()
+        //resolutionAdapter?.addAll(currentResolutionDisplayNames)
         resolutionAdapter?.notifyDataSetChanged()
 
         if (currentResolutionDisplayNames.contains(previouslySelectedResolution)) spinnerResolution.setText(previouslySelectedResolution, false)
@@ -237,8 +240,8 @@ class SettingsActivity : Activity() {
         this.currentFrameRateDisplayNames.addAll(customFrameRatesInOldList.distinct())
         sortFrameRateDisplayNames()
 
-        frameRateAdapter?.clear()
-        frameRateAdapter?.addAll(this.currentFrameRateDisplayNames)
+        //frameRateAdapter?.clear()
+        //frameRateAdapter?.addAll(this.currentFrameRateDisplayNames)
         frameRateAdapter?.notifyDataSetChanged()
 
         if (this.currentFrameRateDisplayNames.contains(previouslySelectedFrameRate)) {
@@ -251,13 +254,16 @@ class SettingsActivity : Activity() {
     }
 
     private fun setupSpinners() {
+        Log.d(TAG, "setupSpinners: Enter.")
+        Toast.makeText(this, "TEST", Toast.LENGTH_SHORT)
+        
         currentFormatDisplayNames.clear()
         currentFormatDisplayNames.addAll(supportedMimeTypesWithFriendlyNames.map { it.first })
         formatAdapter?.notifyDataSetChanged()
 
         val originalResStr = getString(R.string.resolution_original_display_name)
         currentResolutionDisplayNames.clear()
-        currentResolutionDisplayNames.add(originalResString)
+        currentResolutionDisplayNames.add(originalResStr)
         val standardDisplayNames = settingsManager.STANDARD_RESOLUTIONS_MAP.keys
             .sortedWith(compareBy { displayName ->
                 settingsManager.parseResolutionValue(displayName)?.let { dims ->
@@ -265,8 +271,9 @@ class SettingsActivity : Activity() {
                 } ?: Long.MAX_VALUE
             })
         currentResolutionDisplayNames.addAll(standardDisplayNames)
-        resolutionAdapter?.clear()
-        resolutionAdapter?.addAll(currentResolutionDisplayNames.distinct())
+        Log.d(TAG, "setupSpinners: $standardDisplayNames.")
+        //resolutionAdapter?.clear()
+        //resolutionAdapter?.addAll(currentResolutionDisplayNames.distinct())
         resolutionAdapter?.notifyDataSetChanged()
 
         currentQualityDisplayNames.clear()
@@ -280,15 +287,17 @@ class SettingsActivity : Activity() {
         currentFrameRateDisplayNames.add(getString(R.string.frame_rate_display_format, "24"))
         currentFrameRateDisplayNames.add(getString(R.string.frame_rate_display_format, "30"))
         sortFrameRateDisplayNames()
-        frameRateAdapter?.clear()
-        frameRateAdapter?.addAll(currentFrameRateDisplayNames)
+        //frameRateAdapter?.clear()
+        //frameRateAdapter?.addAll(currentFrameRateDisplayNames)
         frameRateAdapter?.notifyDataSetChanged()
 
         currentAudioBitrateDisplayNames.clear()
         currentAudioBitrateDisplayNames.addAll(commonAudioBitrates.keys.toList())
-        audioBitrateAdapter?.clear()
-        audioBitrateAdapter?.addAll(currentAudioBitrateDisplayNames)
+        //audioBitrateAdapter?.clear()
+        //audioBitrateAdapter?.addAll(currentAudioBitrateDisplayNames)
         audioBitrateAdapter?.notifyDataSetChanged()
+
+        Log.d(TAG, "setupSpinners: DONE.")
     }
 
     private fun sortFrameRateDisplayNames() {
@@ -308,6 +317,7 @@ class SettingsActivity : Activity() {
         updateCapabilitiesForFormat(loadedFormatMime)
 
         val loadedResolutionDisplayName = settingsManager.loadResolution()
+
         if (loadedResolutionDisplayName.startsWith("Custom (") && !currentResolutionDisplayNames.contains(loadedResolutionDisplayName)){
             currentResolutionDisplayNames.add(loadedResolutionDisplayName)
             val originalResString = getString(R.string.resolution_original_display_name)
@@ -318,8 +328,8 @@ class SettingsActivity : Activity() {
                     else -> settingsManager.parseResolutionValue(it)?.let { dim -> dim.first.toLong() * dim.second.toLong() } ?: (Long.MAX_VALUE -1)
                 }
             })
-            resolutionAdapter?.clear()
-            resolutionAdapter?.addAll(currentResolutionDisplayNames)
+            //resolutionAdapter?.clear()
+            //resolutionAdapter?.addAll(currentResolutionDisplayNames)
             resolutionAdapter?.notifyDataSetChanged()
         }
         if (currentResolutionDisplayNames.contains(loadedResolutionDisplayName)) {
@@ -337,8 +347,8 @@ class SettingsActivity : Activity() {
         if (!currentFrameRateDisplayNames.contains(loadedFrameRateDisplay)) {
             currentFrameRateDisplayNames.add(loadedFrameRateDisplay)
             sortFrameRateDisplayNames()
-            frameRateAdapter?.clear()
-            frameRateAdapter?.addAll(currentFrameRateDisplayNames)
+            //frameRateAdapter?.clear()
+            //frameRateAdapter?.addAll(currentFrameRateDisplayNames)
             frameRateAdapter?.notifyDataSetChanged()
         }
         spinnerFrameRate.setText(loadedFrameRateDisplay, false)
@@ -399,6 +409,7 @@ class SettingsActivity : Activity() {
                     val customResDisplayName = getString(R.string.custom_resolution_format, width, height)
                     if (!currentResolutionDisplayNames.contains(customResDisplayName)) {
                         currentResolutionDisplayNames.add(customResDisplayName)
+
                         val originalResString = getString(R.string.resolution_original_display_name)
                         currentResolutionDisplayNames.sortWith(compareBy {
                             when {
@@ -407,8 +418,9 @@ class SettingsActivity : Activity() {
                                 else -> settingsManager.parseResolutionValue(it)?.let { dim -> dim.first.toLong() * dim.second.toLong() } ?: (Long.MAX_VALUE -1)
                             }
                         })
-                        resolutionAdapter?.clear()
-                        resolutionAdapter?.addAll(currentResolutionDisplayNames)
+
+                        //resolutionAdapter?.clear()
+                        //resolutionAdapter?.addAll(currentResolutionDisplayNames)
                         resolutionAdapter?.notifyDataSetChanged()
                     }
                     spinnerResolution.setText(customResDisplayName, false)
@@ -433,7 +445,8 @@ class SettingsActivity : Activity() {
                     if(!currentFrameRateDisplayNames.contains(fpsDisplayString)){
                         currentFrameRateDisplayNames.add(fpsDisplayString)
                         sortFrameRateDisplayNames()
-                        frameRateAdapter?.clear(); frameRateAdapter?.addAll(currentFrameRateDisplayNames); frameRateAdapter?.notifyDataSetChanged()
+                        //frameRateAdapter?.clear(); frameRateAdapter?.addAll(currentFrameRateDisplayNames);
+                        frameRateAdapter?.notifyDataSetChanged()
                     }
                     spinnerFrameRate.setText(fpsDisplayString, false)
                     settingsManager.saveFrameRate(fpsInt); updateEstimatedSize()

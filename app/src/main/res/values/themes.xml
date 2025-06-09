@@ -60,7 +60,7 @@
         <item name="materialButtonStyle">@style/Widget.App.Button</item>
         <item name="textInputStyle">@style/Widget.App.TextInputLayout</item>
         <item name="toolbarStyle">@style/Widget.App.Toolbar</item>
-        <item name="progressIndicatorStyle">@style/Widget.App.ProgressIndicator.Circular</item> <!-- Default for indeterminate -->
+        <!--item name="progressIndicatorStyle">@style/Widget.App.ProgressIndicator.Circular</item -->
         <item name="linearProgressIndicatorStyle">@style/Widget.App.ProgressIndicator.Linear</item>
 
     </style>
