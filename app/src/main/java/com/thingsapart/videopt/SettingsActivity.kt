@@ -93,16 +93,16 @@ class SettingsActivity : Activity() {
         spinnerAudioBitrate = findViewById(R.id.spinner_audio_bitrate)
         textViewEstimatedSize = findViewById(R.id.textview_estimated_size)
 
-        resolutionAdapter = ArrayAdapter(this, R.layout.list_item_dropdown, currentResolutionDisplayNames)
+        resolutionAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, currentResolutionDisplayNames)
         spinnerResolution.setAdapter(resolutionAdapter)
 
-        frameRateAdapter = ArrayAdapter(this, R.layout.list_item_dropdown, currentFrameRateDisplayNames)
+        frameRateAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, currentFrameRateDisplayNames)
         spinnerFrameRate.setAdapter(frameRateAdapter)
 
-        formatAdapter = ArrayAdapter(this, R.layout.list_item_dropdown, currentFormatDisplayNames)
+        formatAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, currentFormatDisplayNames)
         spinnerFormat.setAdapter(formatAdapter)
 
-        audioBitrateAdapter = ArrayAdapter(this, R.layout.list_item_dropdown, currentAudioBitrateDisplayNames)
+        audioBitrateAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, currentAudioBitrateDisplayNames)
         spinnerAudioBitrate.setAdapter(audioBitrateAdapter)
 
         setupSpinners()
@@ -264,7 +264,8 @@ class SettingsActivity : Activity() {
         resolutionAdapter?.addAll(currentResolutionDisplayNames.distinct())
         resolutionAdapter?.notifyDataSetChanged()
 
-        val qualityAdapter = ArrayAdapter(this, R.layout.list_item_dropdown, supportedQualities)
+        // qualityAdapter is initialized here
+        val qualityAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, supportedQualities)
         spinnerQuality.setAdapter(qualityAdapter)
 
         val originalFpsStr = getString(R.string.frame_rate_original_display_name)
