@@ -1,55 +1,90 @@
 package com.thingsapart.videopt
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.media.MediaCodecInfo
 import android.media.MediaCodecList
 import android.os.Bundle
 import android.text.Editable
+import android.text.InputType
 import android.text.TextWatcher
 import android.util.Log
 import android.util.Range
-import android.view.View
-import android.widget.AdapterView
+import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
+import android.widget.EditText
+import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import java.util.Locale
+import kotlin.math.log10
+import kotlin.math.pow
 
 class SettingsActivity : Activity() {
 
     private lateinit var settingsManager: SettingsManager
 
+    // Resolution
     private lateinit var spinnerResolution: AutoCompleteTextView
+    private lateinit var resolutionAdapter: ArrayAdapter<String>
+    private lateinit var btnAddCustomResolution: ImageButton
+    private var currentResolutionDisplayNames: MutableList<String> = mutableListOf()
+
+    // Format
     private lateinit var spinnerFormat: AutoCompleteTextView
+    private lateinit var formatAdapter: ArrayAdapter<String>
+    private var supportedMimeTypesWithFriendlyNames = mutableListOf<Pair<String, String>>()
+
+    // Quality
     private lateinit var spinnerQuality: AutoCompleteTextView
-    private lateinit var editTextFrameRate: TextInputEditText
-    private lateinit var editTextAudioBitrate: TextInputEditText
+    private var supportedQualities: Array<String> = arrayOf("High", "Medium", "Low")
+
+    // Frame Rate
+    private lateinit var spinnerFrameRate: AutoCompleteTextView
+    private lateinit var frameRateAdapter: ArrayAdapter<String>
+    private lateinit var btnAddCustomFrameRate: ImageButton
+    private var currentFrameRateDisplayNames: MutableList<String> = mutableListOf()
+
+    // Audio Bitrate
+    private lateinit var spinnerAudioBitrate: AutoCompleteTextView // Changed from EditText
+    private lateinit var audioBitrateAdapter: ArrayAdapter<String>
+    // Store as Pair<DisplayName, ValueInBps>
+    private val commonAudioBitrates = linkedMapOf(
+        "96 kbps" to 96000,
+        "128 kbps" to 128000,
+        "192 kbps" to 192000,
+        "256 kbps" to 256000,
+        "320 kbps" to 320000
+    )
+
+    // Other UI
     private lateinit var textViewEstimatedSize: TextView
 
+    // Codec Info
     private var availableCodecs: List<MediaCodecInfo> = listOf()
-    private var supportedMimeTypes: MutableList<String> = mutableListOf()
-    private var supportedResolutions: MutableList<String> = mutableListOf("Original",
-        SettingsManager.DEFAULT_RESOLUTION
-    )
-    private var supportedQualities: Array<String> = arrayOf("High", "Medium", "Low")
-    private var supportedFrameRates: Range<Int>? = null // Store as Range<Int>
-    private var supportedVideoBitrates: Range<Int>? = null // Store as Range<Int> bps
-    private var supportedAudioBitrates: Range<Int>? = null // Store as Range<Int> bps
-
+    private var supportedFrameRatesFromCodec: Range<Int>? = null
+    private var supportedVideoBitrates: Range<Int>? = null
+    private var supportedAudioBitratesFromCodec: Range<Int>? = null // Renamed for clarity
 
     companion object {
         private const val TAG = "SettingsActivity"
-        val COMMON_RESOLUTIONS = mapOf(
-            "1080p" to Pair(1920, 1080),
-            "720p" to Pair(1280, 720),
-            "480p" to Pair(854, 480),
-            "360p" to Pair(640, 360)
+        val STANDARD_RESOLUTIONS_MAP = mapOf(
+            "Original" to "Original",
+            "480p (854x480)" to "854x480",
+            "720p (1280x720)" to "1280x720",
+            "1080p (1920x1080)" to "1920x1080",
+            "2K (2560x1440)" to "2560x1440",
+            "4K (3840x2160)" to "3840x2160"
         )
-        // Base bitrates in BPS for "Medium" quality at 720p
-        private const val BASE_BITRATE_MEDIUM_720P_AVC = 2_500_000 // 2.5 Mbps for H.264
-        private const val BASE_BITRATE_MEDIUM_720P_HEVC = 1_800_000 // 1.8 Mbps for H.265 (more efficient)
-        private const val BASE_BITRATE_MEDIUM_720P_VP9 = 2_000_000  // 2.0 Mbps for VP9
+        val COMMON_FRAME_RATES = listOf("24", "25", "30", "48", "50", "60")
+
+        private const val BASE_BITRATE_MEDIUM_720P_AVC = 2_500_000
+        private const val BASE_BITRATE_MEDIUM_720P_HEVC = 1_800_000
+        private const val BASE_BITRATE_MEDIUM_720P_VP9 = 2_000_000
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -59,16 +94,15 @@ class SettingsActivity : Activity() {
 
         settingsManager = SettingsManager(applicationContext)
 
+        // Initialize Views
         spinnerResolution = findViewById(R.id.spinner_resolution)
+        btnAddCustomResolution = findViewById(R.id.btn_add_custom_resolution)
         spinnerFormat = findViewById(R.id.spinner_format)
         spinnerQuality = findViewById(R.id.spinner_quality)
-        editTextFrameRate = findViewById(R.id.edittext_frame_rate)
-        editTextAudioBitrate = findViewById(R.id.edittext_audio_bitrate)
+        spinnerFrameRate = findViewById(R.id.spinner_frame_rate)
+        btnAddCustomFrameRate = findViewById(R.id.btn_add_custom_frame_rate)
+        spinnerAudioBitrate = findViewById(R.id.spinner_audio_bitrate) // New
         textViewEstimatedSize = findViewById(R.id.textview_estimated_size)
-        // The following line is commented out as per the instructions to remove custom back button,
-        // however, there was no custom back button to begin with.
-        // supportActionBar?.setDisplayHomeAsUpEnabled(true)
-
 
         queryCodecCapabilities()
         setupSpinners()
@@ -77,266 +111,290 @@ class SettingsActivity : Activity() {
         Log.d(TAG, "onCreate: UI initialized and listeners set up")
     }
 
-     private fun queryCodecCapabilities() {
-        Log.d(TAG, "Querying codec capabilities...")
-        val codecList = MediaCodecList(MediaCodecList.ALL_CODECS)
-        availableCodecs = codecList.codecInfos.filter { it.isEncoder }
-
-        supportedMimeTypes.clear()
-        availableCodecs.forEach { codecInfo ->
-            codecInfo.supportedTypes.forEach { type ->
-                if (type.startsWith("video/") && !supportedMimeTypes.contains(type)) {
-                    supportedMimeTypes.add(type)
-                }
-            }
+    private fun getFormatDisplayName(mimeType: String): String {
+        return when (mimeType.lowercase(Locale.US)) {
+            "video/avc" -> "H.264 (AVC) - $mimeType"
+            "video/hevc" -> "H.265 (HEVC) - $mimeType"
+            "video/x-vnd.on2.vp9" -> "VP9 - $mimeType"
+            "video/av01" -> "AV1 - $mimeType"
+            else -> mimeType
         }
-
-        if (supportedMimeTypes.isEmpty()) {
-            Log.w(TAG, "No video encoders found! Adding default: ${SettingsManager.DEFAULT_FORMAT}")
-            supportedMimeTypes.add(SettingsManager.DEFAULT_FORMAT)
-        }
-        Log.d(TAG, "Supported MIME types: $supportedMimeTypes")
-        // Initial update based on default or first available format
-        updateCapabilitiesForFormat(settingsManager.loadFormat().takeIf { supportedMimeTypes.contains(it) } ?: supportedMimeTypes.firstOrNull() ?: SettingsManager.DEFAULT_FORMAT)
     }
 
+    private fun queryCodecCapabilities() {
+        val codecList = MediaCodecList(MediaCodecList.ALL_CODECS)
+        availableCodecs = codecList.codecInfos.filter { it.isEncoder }
+        val rawMimeTypes = mutableSetOf<String>() // Use Set to avoid duplicates initially
+        availableCodecs.forEach { codecInfo ->
+            codecInfo.supportedTypes.forEach { type ->
+                if (type.startsWith("video/")) rawMimeTypes.add(type)
+            }
+        }
+        if (rawMimeTypes.isEmpty()) rawMimeTypes.add(SettingsManager.DEFAULT_FORMAT)
 
-    private fun updateCapabilitiesForFormat(mimeType: String) {
+        supportedMimeTypesWithFriendlyNames.clear()
+        rawMimeTypes.forEach { mime ->
+            supportedMimeTypesWithFriendlyNames.add(Pair(getFormatDisplayName(mime), mime))
+        }
+        val initialFormatMime = settingsManager.loadFormat().takeIf { mime -> rawMimeTypes.contains(mime) } ?: rawMimeTypes.firstOrNull() ?: SettingsManager.DEFAULT_FORMAT
+        updateCapabilitiesForFormat(initialFormatMime) // Changed name for clarity
+    }
+
+    private fun updateCapabilitiesForFormat(mimeType: String) { // Renamed
         Log.d(TAG, "Updating capabilities for format: $mimeType")
-        val currentSelectedResolution = spinnerResolution.text.toString().ifEmpty { settingsManager.loadResolution() }
+        val currentSelectedResolutionDisplayName = spinnerResolution.text.toString().ifEmpty { settingsManager.loadResolution() }
+        val currentSelectedFrameRate = spinnerFrameRate.text.toString().ifEmpty { settingsManager.loadFrameRate().toString() }
+        // Audio bitrate selection does not depend on video format caps for this app's logic
 
-        supportedResolutions.clear()
-        supportedResolutions.add("Original") // Keep original resolution option
+        currentResolutionDisplayNames.clear()
+        currentResolutionDisplayNames.add("Original")
 
         val selectedCodecInfo = availableCodecs.find { it.supportedTypes.contains(mimeType) }
 
         if (selectedCodecInfo == null) {
-            Log.w(TAG, "No codec found for MIME type: $mimeType. Using broad fallback capabilities.")
-            COMMON_RESOLUTIONS.keys.forEach { supportedResolutions.add(it) }
-            supportedFrameRates = Range(15, 60) // Broad fallback
-            supportedVideoBitrates = Range(250_000, 10_000_000) // Broad fallback
-            supportedAudioBitrates = Range(32_000, 512_000) // Broad fallback
+            STANDARD_RESOLUTIONS_MAP.keys.filterNot { it == "Original" }.forEach { currentResolutionDisplayNames.add(it) }
+            supportedFrameRatesFromCodec = Range(15, 60); supportedVideoBitrates = Range(250_000, 10_000_000); supportedAudioBitratesFromCodec = Range(32_000, 512_000)
         } else {
             try {
                 val capabilities = selectedCodecInfo.getCapabilitiesForType(mimeType)
                 val videoCaps = capabilities.videoCapabilities
                 if (videoCaps != null) {
-                    Log.d(TAG, "Video Caps for ${selectedCodecInfo.name} ($mimeType): Bitrate:${videoCaps.bitrateRange}, FPS:${videoCaps.supportedFrameRates}, W:${videoCaps.supportedWidths}, H:${videoCaps.supportedHeights}")
-                    supportedVideoBitrates = videoCaps.bitrateRange
-                    supportedFrameRates = videoCaps.supportedFrameRates // This returns a Range<Int> of all rates, or specific ranges
-
-                    COMMON_RESOLUTIONS.forEach { (name, size) ->
-                        if (videoCaps.isSizeSupported(size.first, size.second)) {
-                            if (!supportedResolutions.contains(name)) supportedResolutions.add(name)
+                    supportedVideoBitrates = videoCaps.bitrateRange; supportedFrameRatesFromCodec = videoCaps.supportedFrameRates
+                    STANDARD_RESOLUTIONS_MAP.forEach { (displayName, value) ->
+                        if (value != "Original") parseResolutionValue(value)?.let { dims ->
+                            if (videoCaps.isSizeSupported(dims.first, dims.second) && !currentResolutionDisplayNames.contains(displayName)) {
+                                currentResolutionDisplayNames.add(displayName)
+                            }
                         }
                     }
                 } else {
-                    Log.w(TAG, "No video capabilities for $mimeType with ${selectedCodecInfo.name}. Using fallback resolutions.")
-                    COMMON_RESOLUTIONS.keys.forEach { if (!supportedResolutions.contains(it)) supportedResolutions.add(it) }
-                    supportedVideoBitrates = Range(500_000, 5_000_000) // Fallback
-                    supportedFrameRates = Range(15, 30) // Fallback
+                    STANDARD_RESOLUTIONS_MAP.keys.filterNot { it == "Original" }.forEach { currentResolutionDisplayNames.add(it) }
+                    supportedVideoBitrates = Range(500_000, 5_000_000); supportedFrameRatesFromCodec = Range(15, 30)
                 }
-
                 val audioCaps = capabilities.audioCapabilities
-                if (audioCaps != null) {
-                    Log.d(TAG, "Audio Caps for ${selectedCodecInfo.name} ($mimeType): Bitrate:${audioCaps.bitrateRange}")
-                    supportedAudioBitrates = audioCaps.bitrateRange
-                } else {
-                    Log.w(TAG, "No audio capabilities for this codec type. Using fallback audio bitrates.")
-                    supportedAudioBitrates = Range(64_000, 320_000) // Fallback
-                }
+                if (audioCaps != null) supportedAudioBitratesFromCodec = audioCaps.bitrateRange else supportedAudioBitratesFromCodec = Range(64_000, 320_000)
             } catch (e: Exception) {
-                Log.e(TAG, "Error getting capabilities for $mimeType on ${selectedCodecInfo.name}. Using broad fallbacks.", e)
-                COMMON_RESOLUTIONS.keys.forEach { if (!supportedResolutions.contains(it)) supportedResolutions.add(it) }
-                supportedFrameRates = Range(15, 60)
-                supportedVideoBitrates = Range(250_000, 10_000_000)
-                supportedAudioBitrates = Range(32_000, 512_000)
+                STANDARD_RESOLUTIONS_MAP.keys.filterNot { it == "Original" }.forEach { currentResolutionDisplayNames.add(it) }
+                supportedFrameRatesFromCodec = Range(15, 60); supportedVideoBitrates = Range(250_000, 10_000_000); supportedAudioBitratesFromCodec = Range(32_000, 512_000)
             }
         }
-        if (supportedResolutions.size == 1 && supportedResolutions[0] == "Original") { // only "Original"
-             Log.w(TAG, "No common resolutions supported by codec for $mimeType. Adding defaults.")
-             COMMON_RESOLUTIONS.keys.forEach { key -> if(!supportedResolutions.contains(key)) supportedResolutions.add(key) }
+        if (currentResolutionDisplayNames.size == 1 && currentResolutionDisplayNames[0] == "Original") {
+             STANDARD_RESOLUTIONS_MAP.keys.filterNot { it == "Original" || currentResolutionDisplayNames.contains(it) }.forEach { currentResolutionDisplayNames.add(it) }
         }
-        Log.d(TAG, "Final supported resolutions for $mimeType: $supportedResolutions")
 
-        // Refresh resolution spinner adapter as its content has changed
-        val distinctSupportedResolutions = supportedResolutions.distinct().toTypedArray()
-        val newResolutionAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, distinctSupportedResolutions)
-        spinnerResolution.setAdapter(newResolutionAdapter)
-        // Preserve selection if possible
-        if (distinctSupportedResolutions.contains(currentSelectedResolution)) {
-            spinnerResolution.setText(currentSelectedResolution, false)
-        } else if (distinctSupportedResolutions.isNotEmpty()) {
-            spinnerResolution.setText(distinctSupportedResolutions[0], false)
+        val previouslySelectedIsCustomRes = !STANDARD_RESOLUTIONS_MAP.containsKey(currentSelectedResolutionDisplayName) && currentSelectedResolutionDisplayName.startsWith("Custom")
+        if (previouslySelectedIsCustomRes && !currentResolutionDisplayNames.contains(currentSelectedResolutionDisplayName)) {
+            currentResolutionDisplayNames.add(currentSelectedResolutionDisplayName)
         }
+
+        resolutionAdapter.clear()
+        resolutionAdapter.addAll(currentResolutionDisplayNames.distinct().sortedWith(compareBy { if (it == "Original") "0" else parseResolutionValue(it)?.let { dim -> String.format("%05dx%05d", dim.first, dim.second) } ?: it }))
+        resolutionAdapter.notifyDataSetChanged()
+
+        if (currentResolutionDisplayNames.contains(currentSelectedResolutionDisplayName)) spinnerResolution.setText(currentSelectedResolutionDisplayName, false)
+        else if (currentResolutionDisplayNames.isNotEmpty()) spinnerResolution.setText(currentResolutionDisplayNames[0], false)
+        else spinnerResolution.setText("", false)
+
+        if (currentFrameRateDisplayNames.contains(currentSelectedFrameRate)) spinnerFrameRate.setText(currentSelectedFrameRate, false)
+        else if (currentFrameRateDisplayNames.isNotEmpty()) spinnerFrameRate.setText(currentFrameRateDisplayNames.find { it == settingsManager.loadFrameRate().toString() } ?: COMMON_FRAME_RATES.first(), false)
     }
 
-
     private fun setupSpinners() {
-        // Formats - populated first
-        val formatAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, supportedMimeTypes.toTypedArray())
+        // Format
+        val formatDisplayNames = supportedMimeTypesWithFriendlyNames.map { it.first }
+        formatAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, formatDisplayNames)
         spinnerFormat.setAdapter(formatAdapter)
 
-        // Resolutions - adapter will be set/updated in updateCapabilitiesForFormat and loadSettings
-        val resolutionAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, supportedResolutions.distinct().toTypedArray())
+        // Resolution
+        currentResolutionDisplayNames.clear(); currentResolutionDisplayNames.add("Original")
+        STANDARD_RESOLUTIONS_MAP.keys.filterNot { it == "Original" }.forEach { currentResolutionDisplayNames.add(it) }
+        resolutionAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, currentResolutionDisplayNames.distinct().toMutableList())
         spinnerResolution.setAdapter(resolutionAdapter)
 
         // Quality
         val qualityAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, supportedQualities)
         spinnerQuality.setAdapter(qualityAdapter)
-        Log.d(TAG, "Spinners setup initially. Format items: ${supportedMimeTypes.size}, Resolution items: ${supportedResolutions.size}")
+
+        // Frame Rate
+        currentFrameRateDisplayNames.clear(); currentFrameRateDisplayNames.addAll(COMMON_FRAME_RATES)
+        val savedFps = settingsManager.loadFrameRate().toString()
+        if (!currentFrameRateDisplayNames.contains(savedFps)) currentFrameRateDisplayNames.add(savedFps)
+        currentFrameRateDisplayNames.sortWith(compareBy { it.toIntOrNull() ?: Int.MAX_VALUE })
+        frameRateAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, currentFrameRateDisplayNames)
+        spinnerFrameRate.setAdapter(frameRateAdapter)
+
+        // Audio Bitrate
+        val audioBitrateDisplayNames = commonAudioBitrates.keys.toList()
+        audioBitrateAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, audioBitrateDisplayNames)
+        spinnerAudioBitrate.setAdapter(audioBitrateAdapter)
     }
 
     private fun loadSettings() {
-        val loadedFormat = settingsManager.loadFormat()
-        spinnerFormat.setText(loadedFormat, false)
-        // This will also update resolution spinner based on the loaded format
-        updateCapabilitiesForFormat(loadedFormat)
+        val loadedFormatMime = settingsManager.loadFormat()
+        val loadedFormatDisplayName = supportedMimeTypesWithFriendlyNames.find { it.second == loadedFormatMime }?.first ?: getFormatDisplayName(loadedFormatMime)
+        spinnerFormat.setText(loadedFormatDisplayName, false)
+        updateCapabilitiesForFormat(loadedFormatMime)
 
-        val loadedResolution = settingsManager.loadResolution()
-        spinnerResolution.setText(loadedResolution, false)
+        val loadedResolutionDisplayName = settingsManager.loadResolution()
+        if (!currentResolutionDisplayNames.contains(loadedResolutionDisplayName) && (loadedResolutionDisplayName.startsWith("Custom (") || loadedResolutionDisplayName.contains("x"))) {
+            val customDisplayName = if (loadedResolutionDisplayName.startsWith("Custom (")) loadedResolutionDisplayName
+            else parseResolutionValue(loadedResolutionDisplayName)?.let { getString(R.string.custom_resolution_format, it.first, it.second) } ?: loadedResolutionDisplayName
+            if(!currentResolutionDisplayNames.contains(customDisplayName)) {
+                resolutionAdapter.add(customDisplayName); resolutionAdapter.notifyDataSetChanged()
+            }
+            spinnerResolution.setText(customDisplayName, false)
+        } else {
+             if (currentResolutionDisplayNames.contains(loadedResolutionDisplayName)) spinnerResolution.setText(loadedResolutionDisplayName, false)
+             else if (currentResolutionDisplayNames.isNotEmpty()) spinnerResolution.setText(currentResolutionDisplayNames[0], false)
+        }
 
+        val loadedFrameRate = settingsManager.loadFrameRate().toString()
+        if (!currentFrameRateDisplayNames.contains(loadedFrameRate)) {
+            currentFrameRateDisplayNames.add(loadedFrameRate)
+            currentFrameRateDisplayNames.sortWith(compareBy { it.toIntOrNull() ?: Int.MAX_VALUE })
+            // Re-create adapter is safer if list structure changed significantly for sorting
+            frameRateAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, currentFrameRateDisplayNames)
+            spinnerFrameRate.setAdapter(frameRateAdapter)
+        }
+        spinnerFrameRate.setText(loadedFrameRate, false)
 
-        val currentQuality = settingsManager.loadQuality()
-        spinnerQuality.setText(currentQuality, false)
+        val savedAudioBitrateBps = settingsManager.loadAudioBitrate() // This is Int (bps)
+        val savedAudioBitrateDisplayKey = commonAudioBitrates.entries.find { it.value == savedAudioBitrateBps }?.key
+                                        ?: commonAudioBitrates.keys.firstOrNull() // Fallback
+        spinnerAudioBitrate.setText(savedAudioBitrateDisplayKey, false)
 
-
-        editTextFrameRate.setText(settingsManager.loadFrameRate().toString())
-        editTextAudioBitrate.setText(settingsManager.loadAudioBitrate().toString())
-
-        Log.d(TAG, "Settings loaded: Res=${spinnerResolution.text}, Format=${spinnerFormat.text}, Quality=${currentQuality}, FR=${settingsManager.loadFrameRate()}, AudioBR=${settingsManager.loadAudioBitrate()}")
+        spinnerQuality.setText(settingsManager.loadQuality(), false)
         updateEstimatedSize()
     }
 
     private fun setupListeners() {
-        spinnerResolution.setOnItemClickListener { parent, view, position, id ->
-            val selectedResolution = parent.getItemAtPosition(position) as String
-            settingsManager.saveResolution(selectedResolution)
-            Log.d(TAG, "Resolution saved: $selectedResolution")
+        btnAddCustomResolution.setOnClickListener { showCustomResolutionDialog() }
+        btnAddCustomFrameRate.setOnClickListener { showCustomFrameRateDialog() }
+
+        spinnerResolution.setOnItemClickListener { _, _, position, _ ->
+            settingsManager.saveResolution(resolutionAdapter.getItem(position) ?: "Original"); updateEstimatedSize()
+        }
+        spinnerFormat.setOnItemClickListener { _, _, position, _ ->
+            val selectedFormatMime = supportedMimeTypesWithFriendlyNames[position].second
+            settingsManager.saveFormat(selectedFormatMime); updateCapabilitiesForFormat(selectedFormatMime); updateEstimatedSize()
+        }
+        spinnerQuality.setOnItemClickListener { _, _, position, _ ->
+            settingsManager.saveQuality(supportedQualities[position]); updateEstimatedSize()
+        }
+        spinnerFrameRate.setOnItemClickListener { _, _, position, _ ->
+            val selectedFpsStr = frameRateAdapter.getItem(position) ?: COMMON_FRAME_RATES.first()
+            settingsManager.saveFrameRate(selectedFpsStr.toIntOrNull() ?: settingsManager.loadFrameRate()); updateEstimatedSize()
+        }
+        spinnerAudioBitrate.setOnItemClickListener { _, _, position, _ ->
+            val selectedDisplayName = audioBitrateAdapter.getItem(position)
+            val selectedBitrateBps = commonAudioBitrates[selectedDisplayName] ?: commonAudioBitrates.values.first()
+            settingsManager.saveAudioBitrate(selectedBitrateBps) // Save BPS value
             updateEstimatedSize()
         }
-
-        spinnerFormat.setOnItemClickListener { parent, view, position, id ->
-            val selectedFormat = parent.getItemAtPosition(position) as String
-            settingsManager.saveFormat(selectedFormat)
-            Log.d(TAG, "Format selected: $selectedFormat. Updating capabilities...")
-            updateCapabilitiesForFormat(selectedFormat) // This will refresh resolution spinner
-            updateEstimatedSize()
-        }
-
-        spinnerQuality.setOnItemClickListener { parent, view, position, id ->
-            val selectedQuality = parent.getItemAtPosition(position) as String
-            settingsManager.saveQuality(selectedQuality)
-            Log.d(TAG, "Quality saved: $selectedQuality")
-            updateEstimatedSize()
-        }
-
-        editTextFrameRate.addTextChangedListener(object : TextWatcher {
-            override fun afterTextChanged(s: Editable?) {
-                val frameRateStr = s.toString()
-                if (frameRateStr.isNotEmpty()) {
-                    val frameRate = frameRateStr.toIntOrNull() ?: settingsManager.loadFrameRate()
-                    settingsManager.saveFrameRate(frameRate)
-                    Log.d(TAG, "Frame rate saved: $frameRate")
-                    updateEstimatedSize()
-                }
-            }
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-        })
-
-        editTextAudioBitrate.addTextChangedListener(object : TextWatcher {
-            override fun afterTextChanged(s: Editable?) {
-                 val audioBitrateStr = s.toString()
-                 if (audioBitrateStr.isNotEmpty()){
-                    val audioBitrate = audioBitrateStr.toIntOrNull() ?: settingsManager.loadAudioBitrate()
-                    settingsManager.saveAudioBitrate(audioBitrate)
-                    Log.d(TAG, "Audio bitrate saved: $audioBitrate")
-                    updateEstimatedSize()
-                 }
-            }
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-        })
-        Log.d(TAG, "Listeners setup complete")
     }
 
-    private fun getEstimatedVideoBitrate(resolution: String, quality: String, mimeType: String): Int {
-        val targetPixels = COMMON_RESOLUTIONS[resolution]?.let { it.first * it.second } ?: (COMMON_RESOLUTIONS[SettingsManager.DEFAULT_RESOLUTION]?.let { it.first * it.second } ?: (1280*720))
-        val base720pPixels = 1280 * 720
+    private fun showCustomResolutionDialog() {
+        // ... same as before
+        val dialogView = LinearLayout(this); dialogView.orientation = LinearLayout.VERTICAL; dialogView.setPadding(48,24,48,24)
+        val widthInputLayout = TextInputLayout(this); val widthEditText = TextInputEditText(this)
+        widthEditText.hint = getString(R.string.dialog_label_width); widthEditText.inputType = InputType.TYPE_CLASS_NUMBER
+        widthInputLayout.addView(widthEditText); dialogView.addView(widthInputLayout)
+        val heightInputLayout = TextInputLayout(this); val heightEditText = TextInputEditText(this)
+        heightEditText.hint = getString(R.string.dialog_label_height); heightEditText.inputType = InputType.TYPE_CLASS_NUMBER
+        heightInputLayout.addView(heightEditText); dialogView.addView(heightInputLayout)
 
-        var baseBitrate = when (mimeType) {
-            "video/hevc" -> BASE_BITRATE_MEDIUM_720P_HEVC // H.265
-            "video/vp9" -> BASE_BITRATE_MEDIUM_720P_VP9
-            else -> BASE_BITRATE_MEDIUM_720P_AVC // Default to AVC H.264
-        }
-
-        // Adjust base bitrate for quality setting
-        baseBitrate = when (quality) {
-            "High" -> (baseBitrate * 1.8).toInt()
-            "Low" -> (baseBitrate * 0.5).toInt()
-            else -> baseBitrate // Medium
-        }
-
-        // Scale bitrate by resolution (proportional to pixel count relative to 720p)
-        var estimatedBitrate = (baseBitrate * (targetPixels.toDouble() / base720pPixels)).toInt()
-
-        // Clamp to supported range or a reasonable default range if not available
-        val videoBitrateRange = supportedVideoBitrates ?: Range(250_000, 10_000_000) // Default range if null
-        estimatedBitrate = estimatedBitrate.coerceIn(videoBitrateRange.lower, videoBitrateRange.upper)
-
-        Log.d(TAG, "Estimated video bitrate for $resolution, $quality, $mimeType: $estimatedBitrate bps")
-        return estimatedBitrate
+        AlertDialog.Builder(this).setTitle(getString(R.string.dialog_title_custom_resolution)).setView(dialogView)
+            .setPositiveButton(android.R.string.ok) { dialog, _ ->
+                val width = widthEditText.text.toString().toIntOrNull(); val height = heightEditText.text.toString().toIntOrNull()
+                if (width != null && height != null && width > 0 && height > 0) {
+                    val customResDisplayName = getString(R.string.custom_resolution_format, width, height)
+                    if (!currentResolutionDisplayNames.contains(customResDisplayName)) {
+                        resolutionAdapter.add(customResDisplayName);
+                        currentResolutionDisplayNames.add(customResDisplayName) // Keep local list in sync
+                        currentResolutionDisplayNames.sortWith(compareBy { if (it == "Original") "0" else parseResolutionValue(it)?.let { dim -> String.format("%05dx%05d", dim.first, dim.second) } ?: it })
+                        resolutionAdapter.clear()
+                        resolutionAdapter.addAll(currentResolutionDisplayNames)
+                        resolutionAdapter.notifyDataSetChanged()
+                    }
+                    spinnerResolution.setText(customResDisplayName, false)
+                    settingsManager.saveResolution(customResDisplayName); updateEstimatedSize()
+                    dialog.dismiss()
+                } else { Toast.makeText(this, getString(R.string.error_invalid_resolution_value), Toast.LENGTH_SHORT).show() }
+            }
+            .setNegativeButton(android.R.string.cancel, null).show()
     }
 
+    private fun showCustomFrameRateDialog() {
+        // ... same as before
+        val dialogView = LinearLayout(this); dialogView.orientation = LinearLayout.VERTICAL; dialogView.setPadding(48,24,48,24)
+        val frInputLayout = TextInputLayout(this); val frEditText = TextInputEditText(this)
+        frEditText.hint = getString(R.string.dialog_label_frame_rate); frEditText.inputType = InputType.TYPE_CLASS_NUMBER
+        frInputLayout.addView(frEditText); dialogView.addView(frInputLayout)
+
+        AlertDialog.Builder(this).setTitle(getString(R.string.dialog_title_custom_frame_rate)).setView(dialogView)
+            .setPositiveButton(android.R.string.ok) {dialog, _ ->
+                val fpsStr = frEditText.text.toString(); val fps = fpsStr.toIntOrNull()
+                if (fps != null && fps > 0) {
+                    if(!currentFrameRateDisplayNames.contains(fpsStr)){
+                        currentFrameRateDisplayNames.add(fpsStr)
+                        currentFrameRateDisplayNames.sortWith(compareBy{it.toIntOrNull() ?: Int.MAX_VALUE})
+                        frameRateAdapter.clear(); frameRateAdapter.addAll(currentFrameRateDisplayNames); frameRateAdapter.notifyDataSetChanged()
+                    }
+                    spinnerFrameRate.setText(fpsStr, false)
+                    settingsManager.saveFrameRate(fps); updateEstimatedSize()
+                    dialog.dismiss()
+                } else { Toast.makeText(this, getString(R.string.error_invalid_frame_rate_value), Toast.LENGTH_SHORT).show()}
+            }
+            .setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    private fun parseResolutionValue(resValOrDspName: String): Pair<Int, Int>? {
+        STANDARD_RESOLUTIONS_MAP[resValOrDspName]?.let { v ->
+            if (v != "Original") return v.split("x").takeIf { it.size == 2 }?.let { Pair(it[0].toIntOrNull()?:0, it[1].toIntOrNull()?:0) }?.takeIf{it.first>0 && it.second>0}
+        }
+        if (resValOrDspName.startsWith("Custom (") && resValOrDspName.endsWith(")")) {
+            return try { resValOrDspName.substringAfter("Custom (").dropLast(1).split("x").let { Pair(it[0].toInt(), it[1].toInt()) } } catch (e: Exception) { null }
+        }
+        return try { resValOrDspName.split("x").takeIf { it.size == 2 }?.let { Pair(it[0].toInt(), it[1].toInt()) } } catch (e: Exception) { null }
+    }
+
+    private fun getEstimatedVideoBitrate(resDspName: String, quality: String, mimeType: String): Int {
+        val defResKey = STANDARD_RESOLUTIONS_MAP.entries.find { it.key.contains("720p") }?.key ?: STANDARD_RESOLUTIONS_MAP.keys.first()
+        val dims = parseResolutionValue(resDspName) ?: parseResolutionValue(defResKey)!!
+        val targetPx = dims.first * dims.second; val base720pPx = 1280 * 720
+        var baseBitrate = when (mimeType) { "video/hevc" -> BASE_BITRATE_MEDIUM_720P_HEVC; "video/x-vnd.on2.vp9" -> BASE_BITRATE_MEDIUM_720P_VP9; else -> BASE_BITRATE_MEDIUM_720P_AVC }
+        baseBitrate = when (quality) { "High" -> (baseBitrate * 1.8); "Low" -> (baseBitrate * 0.5); else -> baseBitrate }.toInt()
+        var estBitrate = (baseBitrate * (targetPx.toDouble() / base720pPx)).toInt()
+        val range = supportedVideoBitrates ?: Range(250_000, 10_000_000)
+        return estBitrate.coerceIn(range.lower, range.upper)
+    }
 
     private fun updateEstimatedSize() {
-        val resolution = spinnerResolution.text.toString().ifEmpty { settingsManager.loadResolution() }
-        val format = spinnerFormat.text.toString().ifEmpty { settingsManager.loadFormat() }
+        val resDspName = spinnerResolution.text.toString().ifEmpty { settingsManager.loadResolution() }
+        val fmtDspName = spinnerFormat.text.toString().ifEmpty { getFormatDisplayName(settingsManager.loadFormat()) }
+        val fmtMime = supportedMimeTypesWithFriendlyNames.find { it.first == fmtDspName }?.second ?: SettingsManager.DEFAULT_FORMAT
         val quality = spinnerQuality.text.toString().ifEmpty { settingsManager.loadQuality() }
+        val audioBitrateDspName = spinnerAudioBitrate.text.toString().ifEmpty { commonAudioBitrates.entries.find { it.value == settingsManager.loadAudioBitrate()}?.key ?: commonAudioBitrates.keys.first()}
+        val audioBitrateBps = commonAudioBitrates[audioBitrateDspName] ?: settingsManager.loadAudioBitrate()
 
-        val frameRateStr = editTextFrameRate.text.toString()
-        val audioBitrateStr = editTextAudioBitrate.text.toString()
-
-        // Ensure robust parsing with defaults if text is empty or invalid
-        val frameRate = if (frameRateStr.isNotEmpty()) frameRateStr.toIntOrNull() ?: settingsManager.loadFrameRate() else settingsManager.loadFrameRate()
-        val audioBitrateKbps = if (audioBitrateStr.isNotEmpty()) audioBitrateStr.toIntOrNull() ?: settingsManager.loadAudioBitrate() else settingsManager.loadAudioBitrate()
-
-        if (resolution == "Original") {
-            // For "Original" resolution, provide an estimate based on 1080p "Medium" quality,
-            // as the actual bitrate can vary wildly or be unknown.
-            // Use current format and audio bitrate settings.
-            val assumed1080pVideoBitrateBps = getEstimatedVideoBitrate("1080p", quality, format) // Use current quality and format
-            val currentAudioBitrateBps = (if (audioBitrateStr.isNotEmpty()) audioBitrateStr.toIntOrNull() ?: settingsManager.loadAudioBitrate() else settingsManager.loadAudioBitrate()) * 1000
-
-            val totalBitrateBpsOriginal = assumed1080pVideoBitrateBps + currentAudioBitrateBps
-            val bytesPerSecondOriginal = totalBitrateBpsOriginal / 8.0
-            val bytesPerMinuteOriginal = bytesPerSecondOriginal * 60
-
-            val formattedSizeOriginal = when {
-                bytesPerMinuteOriginal >= 1_000_000 -> String.format(Locale.US, "%.1f MB/min", bytesPerMinuteOriginal / 1_000_000.0)
-                bytesPerMinuteOriginal >= 1_000 -> String.format(Locale.US, "%.0f KB/min", bytesPerMinuteOriginal / 1_000.0)
-                else -> String.format(Locale.US, "%.0f B/min", bytesPerMinuteOriginal)
-            }
-            textViewEstimatedSize.text = "Est. size (Original as 1080p): ~${formattedSizeOriginal}"
-            Log.d(TAG, "Estimation for 'Original' (as 1080p, $quality, $format): $formattedSizeOriginal")
+        if (resDspName == "Original") {
+            val assumed1080pKey = STANDARD_RESOLUTIONS_MAP.entries.find {it.key.contains("1080p")}!!.key
+            val videoBitrateBps = getEstimatedVideoBitrate(assumed1080pKey, quality, fmtMime)
+            val totalBitrateBps = videoBitrateBps + audioBitrateBps
+            val bytesPerMinute = (totalBitrateBps / 8.0) * 60
+            textViewEstimatedSize.text = "Est. size (Original as 1080p): ~${formatBytesToHumanReadable(bytesPerMinute)}/min"
             return
         }
-
-        val videoBitrateBps = getEstimatedVideoBitrate(resolution, quality, format)
-        val audioBitrateBps = audioBitrateKbps * 1000 // Convert kbps to bps
-
+        val videoBitrateBps = getEstimatedVideoBitrate(resDspName, quality, fmtMime)
         val totalBitrateBps = videoBitrateBps + audioBitrateBps
-        val bytesPerSecond = totalBitrateBps / 8.0
-        val bytesPerMinute = bytesPerSecond * 60
+        val bytesPerMinute = (totalBitrateBps / 8.0) * 60
+        textViewEstimatedSize.text = "Estimated size: ~${formatBytesToHumanReadable(bytesPerMinute)}/min"
+    }
 
-        val formattedSize = when {
-            bytesPerMinute >= 1_000_000 -> String.format(Locale.US, "%.1f MB/min", bytesPerMinute / 1_000_000.0)
-            bytesPerMinute >= 1_000 -> String.format(Locale.US, "%.0f KB/min", bytesPerMinute / 1_000.0)
-            else -> String.format(Locale.US, "%.0f B/min", bytesPerMinute)
-        }
-
-        textViewEstimatedSize.text = "Estimated size: ~${formattedSize}"
-        Log.d(TAG, "Updated estimated size: $formattedSize for Res:$resolution, Format:$format, Quality:$quality, FR:$frameRate, AudioBR:$audioBitrateKbps kbps")
+    private fun formatBytesToHumanReadable(bytes: Double): String {
+        if (bytes <= 0) return "0 B"
+        val units = arrayOf("B", "KB", "MB", "GB", "TB")
+        val digitGroups = (log10(bytes) / log10(1024.0)).toInt().coerceIn(0, units.size -1)
+        return String.format(Locale.US, "%.1f %s", bytes / 1024.0.pow(digitGroups.toDouble()), units[digitGroups])
     }
 }
