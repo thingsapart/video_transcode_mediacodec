@@ -19,6 +19,16 @@ class SettingsManager(context: Context) {
         "4K (3840x2160)" to "3840x2160"
     )
 
+    internal val STANDARD_FRAME_RATES_MAP = linkedMapOf(
+        "Original" to ORIGINAL_FRAME_RATE, // Uses companion const
+        "24 FPS" to 24,
+        "25 FPS" to 25,
+        "30 FPS" to 30,
+        "48 FPS" to 48,
+        "50 FPS" to 50,
+        "60 FPS" to 60
+    )
+
     // Moved and refined from SettingsActivity
     internal fun parseResolutionValue(resolutionSettingString: String): Pair<Int, Int>? {
         if (resolutionSettingString.equals("Original", ignoreCase = true)) {

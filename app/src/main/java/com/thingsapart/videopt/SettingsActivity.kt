@@ -41,6 +41,8 @@ class SettingsActivity : Activity() {
 
     // Quality
     private lateinit var spinnerQuality: AutoCompleteTextView
+    private var qualityAdapter: ArrayAdapter<String>? = null
+    private var currentQualityDisplayNames: MutableList<String> = mutableListOf()
     private var supportedQualities: Array<String> = arrayOf("High", "Medium", "Low")
 
     // Frame Rate
@@ -93,6 +95,7 @@ class SettingsActivity : Activity() {
         spinnerAudioBitrate = findViewById(R.id.spinner_audio_bitrate)
         textViewEstimatedSize = findViewById(R.id.textview_estimated_size)
 
+        // Reverted to standard Android dropdown item layout
         resolutionAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, currentResolutionDisplayNames)
         spinnerResolution.setAdapter(resolutionAdapter)
 
@@ -104,6 +107,9 @@ class SettingsActivity : Activity() {
 
         audioBitrateAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, currentAudioBitrateDisplayNames)
         spinnerAudioBitrate.setAdapter(audioBitrateAdapter)
+
+        qualityAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, currentQualityDisplayNames)
+        spinnerQuality.setAdapter(qualityAdapter)
 
         setupSpinners()
         queryCodecCapabilities()
@@ -217,14 +223,13 @@ class SettingsActivity : Activity() {
         else if (currentResolutionDisplayNames.isNotEmpty()) spinnerResolution.setText(currentResolutionDisplayNames[0], false)
         else spinnerResolution.setText("", false)
 
-        // Frame Rate List Update
         val originalFpsStr = getString(R.string.frame_rate_original_display_name)
         val defaultFrameRates = mutableListOf(
             originalFpsStr,
             getString(R.string.frame_rate_display_format, "24"),
             getString(R.string.frame_rate_display_format, "30")
         )
-        val customFrameRatesInOldList = this.currentFrameRateDisplayNames // Use the class member list
+        val customFrameRatesInOldList = this.currentFrameRateDisplayNames
             .filter { it != originalFpsStr && !defaultFrameRates.contains(it) && it.endsWith(" FPS") }
 
         this.currentFrameRateDisplayNames.clear()
@@ -264,16 +269,16 @@ class SettingsActivity : Activity() {
         resolutionAdapter?.addAll(currentResolutionDisplayNames.distinct())
         resolutionAdapter?.notifyDataSetChanged()
 
-        // qualityAdapter is initialized here
-        val qualityAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, supportedQualities)
-        spinnerQuality.setAdapter(qualityAdapter)
+        currentQualityDisplayNames.clear()
+        currentQualityDisplayNames.addAll(supportedQualities.toList())
+        qualityAdapter?.notifyDataSetChanged()
+
 
         val originalFpsStr = getString(R.string.frame_rate_original_display_name)
         currentFrameRateDisplayNames.clear()
         currentFrameRateDisplayNames.add(originalFpsStr)
         currentFrameRateDisplayNames.add(getString(R.string.frame_rate_display_format, "24"))
         currentFrameRateDisplayNames.add(getString(R.string.frame_rate_display_format, "30"))
-        // currentFrameRateDisplayNames.add(getString(R.string.frame_rate_display_format, "60")) // Optional
         sortFrameRateDisplayNames()
         frameRateAdapter?.clear()
         frameRateAdapter?.addAll(currentFrameRateDisplayNames)
@@ -300,10 +305,7 @@ class SettingsActivity : Activity() {
         val loadedFormatMime = settingsManager.loadFormat()
         val loadedFormatDisplayName = supportedMimeTypesWithFriendlyNames.find { it.second == loadedFormatMime }?.first ?: getFormatDisplayName(loadedFormatMime)
         spinnerFormat.setText(loadedFormatDisplayName, false)
-        // updateCapabilitiesForFormat is now called AFTER setupSpinners and queryCodecCapabilities in onCreate.
-        // The initial call to updateCapabilitiesForFormat using saved/default format happens in queryCodecCapabilities.
-        // If spinnerFormat.setText here triggers its listener, it would call updateCapabilitiesForFormat again.
-        // This is generally fine if updateCapabilitiesForFormat is idempotent or handles current selections well.
+        updateCapabilitiesForFormat(loadedFormatMime)
 
         val loadedResolutionDisplayName = settingsManager.loadResolution()
         if (loadedResolutionDisplayName.startsWith("Custom (") && !currentResolutionDisplayNames.contains(loadedResolutionDisplayName)){
@@ -347,11 +349,10 @@ class SettingsActivity : Activity() {
         spinnerAudioBitrate.setText(savedAudioBitrateDisplayKey, false)
 
         spinnerQuality.setText(settingsManager.loadQuality(), false)
-        updateEstimatedSize() // Call this once after all spinners are set
+        updateEstimatedSize()
     }
 
     private fun setupListeners() {
-        // ... (listeners are mostly the same, ensure they use adapter?.getItem etc.)
         btnAddCustomResolution.setOnClickListener { showCustomResolutionDialog() }
         btnAddCustomFrameRate.setOnClickListener { showCustomFrameRateDialog() }
 
@@ -364,7 +365,6 @@ class SettingsActivity : Activity() {
             settingsManager.saveFormat(selectedFormatMime); updateCapabilitiesForFormat(selectedFormatMime); updateEstimatedSize()
         }
         spinnerQuality.setOnItemClickListener { _, _, position, _ ->
-            val qualityAdapter = spinnerQuality.adapter as? ArrayAdapter<String>
             settingsManager.saveQuality(qualityAdapter?.getItem(position) ?: supportedQualities.first()); updateEstimatedSize()
         }
         spinnerFrameRate.setOnItemClickListener { _, _, position, _ ->
