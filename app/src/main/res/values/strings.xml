@@ -20,4 +20,8 @@
     <string name="audio_bitrate_label">Audio Bitrate</string>
     <string name="audio_bitrate_hint">Select audio bitrate</string>
     <string name="audio_bitrate_format_kbps">%1$d kbps</string> <!-- Used in code, not directly in layout -->
+
+    <string name="resolution_original_display_name">Original</string>
+    <string name="frame_rate_original_display_name">Original</string>
+    <string name="frame_rate_display_format">%1$s FPS</string>
 </resources>

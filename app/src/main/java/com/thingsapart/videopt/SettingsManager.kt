@@ -10,6 +10,8 @@ class SettingsManager(context: Context) {
     // Moved from SettingsActivity
     internal val STANDARD_RESOLUTIONS_MAP = linkedMapOf(
         "Original" to "Original", // Keep "Original" as a special case if it means pass-through
+        "240p (426x240)" to "426x240", // Added
+        "360p (640x360)" to "640x360",   // Added
         "480p (854x480)" to "854x480",
         "720p (1280x720)" to "1280x720",
         "1080p (1920x1080)" to "1920x1080",
@@ -65,8 +67,9 @@ class SettingsManager(context: Context) {
         const val DEFAULT_RESOLUTION = "720p (1280x720)"
         const val DEFAULT_FORMAT = "video/avc" // H.264
         const val DEFAULT_QUALITY = "Medium"
-        const val DEFAULT_FRAME_RATE = 30
-        const val DEFAULT_AUDIO_BITRATE = 128000 // Store in BPS, was 128 (kbps)
+        const val ORIGINAL_FRAME_RATE = 0 // Sentinel for "Original" frame rate
+        const val DEFAULT_FRAME_RATE = 30 // Actual default if not "Original"
+        const val DEFAULT_AUDIO_BITRATE = 128000 // Store in BPS
     }
 
     fun saveResolution(resolution: String) {
