@@ -158,6 +158,13 @@ class TranscodingService : Service() {
                     val videoFormat = MediaFormat.createVideoFormat(targetVideoMimeUserSetting, actualTargetWidth!!, actualTargetHeight!!)
                     finalOutputMimeType = targetVideoMimeUserSetting // Store the actual MIME type used
 
+                    // Calculate and set KEY_MAX_INPUT_SIZE
+                    // Assuming YUV420 format (1.5 bytes per pixel)
+                    val calculatedMaxInputSize = (actualTargetWidth!! * actualTargetHeight!! * 3.0 / 2.0 * 1.25).toInt() // width * height * 1.5 * 1.25 (25% buffer)
+                    Log.d(TAG, "Setting KEY_MAX_INPUT_SIZE for encoder to: $calculatedMaxInputSize for ${actualTargetWidth}x${actualTargetHeight}")
+                    videoFormat.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, calculatedMaxInputSize)
+
+                    // Now continue with other videoFormat settings:
                     val estimatedVideoBitrate = getEstimatedVideoBitrate(actualTargetWidth, actualTargetHeight, targetQuality, targetVideoMimeUserSetting)
                     videoFormat.setInteger(MediaFormat.KEY_BIT_RATE, estimatedVideoBitrate)
                     videoFormat.setInteger(MediaFormat.KEY_FRAME_RATE, targetFrameRate)
