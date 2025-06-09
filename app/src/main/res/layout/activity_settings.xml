@@ -81,8 +81,10 @@
                         android:id="@+id/spinner_format"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                            android:inputType="none"
-                            android:paddingStart="16dp" />
+                        android:inputType="none"
+                        android:focusable="false"
+                        android:cursorVisible="false"
+                        android:paddingStart="16dp" />
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <com.google.android.material.textfield.TextInputLayout
@@ -98,8 +100,10 @@
                         android:id="@+id/spinner_quality"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                            android:inputType="none"
-                            android:paddingStart="16dp" />
+                        android:inputType="none"
+                        android:focusable="false"
+                        android:cursorVisible="false"
+                        android:paddingStart="16dp" />
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <!-- Frame Rate Input -->
@@ -189,8 +193,10 @@
                         android:id="@+id/spinner_audio_bitrate"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                            android:inputType="none"
-                            android:paddingStart="16dp" />
+                        android:inputType="none"
+                        android:focusable="false"
+                        android:cursorVisible="false"
+                        android:paddingStart="16dp" />
                 </com.google.android.material.textfield.TextInputLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
