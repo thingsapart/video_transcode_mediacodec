@@ -158,6 +158,11 @@ class VideoTranscoder(private val context: Context) {
                         if (isEOS) {
                             Log.d(TAG, "Video Decoder EOS")
                             videoDecoderDone = true
+                            if (encoderInputSurface == null) {
+                                Log.e(TAG, "CRITICAL: encoderInputSurface is NULL before attempting to call videoEncoder.signalEndOfInputStream()!")
+                            } else {
+                                Log.d(TAG, "encoderInputSurface is valid ($encoderInputSurface), proceeding to call videoEncoder.signalEndOfInputStream().")
+                            }
                             videoEncoder.signalEndOfInputStream() // Signal EOS to encoder via surface
                         }
                         // Render the buffer to the surface if it contains data.
