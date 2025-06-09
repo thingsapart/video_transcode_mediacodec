@@ -16,4 +16,9 @@
     <string name="error_preparing_video_for_sharing">Error preparing video for sharing.</string>
     <string name="share_video_title">Share Transcoded Video</string>
     <string name="no_app_to_share_video">No app found to handle sharing video.</string>
+
+    <!-- Strings for notification permission handling in PreviewActivity -->
+    <string name="notification_permission_denied_message">Notification permission denied. Transcoding status updates may not be shown reliably.</string>
+    <string name="notification_permission_required_status">Notification permission is required to show transcoding progress. Please grant the permission via App Settings if you wish to see progress updates.</string>
+    <string name="notification_permission_pending_status">Waiting for notification permission...</string>
 </resources>

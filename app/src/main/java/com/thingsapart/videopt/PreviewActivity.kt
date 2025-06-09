@@ -1,7 +1,9 @@
 package com.thingsapart.videopt
 
+import android.Manifest // Added
 import android.animation.ObjectAnimator
 import android.content.*
+import android.content.pm.PackageManager // Added
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
@@ -11,7 +13,9 @@ import android.util.Log
 import android.view.MenuItem
 import android.view.View
 import android.widget.*
+import androidx.activity.result.contract.ActivityResultContracts // Added
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat // Added
 import androidx.core.content.FileProvider
 import com.bumptech.glide.Glide
 import java.io.File
@@ -24,8 +28,8 @@ class PreviewActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "PreviewActivity"
         const val EXTRA_INPUT_VIDEO_URI = "input_video_uri"
-        const val EXTRA_OUTPUT_VIDEO_URI = "output_video_uri" // Optional output URI
-        const val EXTRA_OUTPUT_MIME_TYPE = "output_video_mime_type" // Optional output MIME
+        const val EXTRA_OUTPUT_VIDEO_URI = "output_video_uri"
+        const val EXTRA_OUTPUT_MIME_TYPE = "output_video_mime_type"
     }
 
     private lateinit var imageThumbnail: ImageView
@@ -33,18 +37,37 @@ class PreviewActivity : AppCompatActivity() {
     private lateinit var textStatusInfo: TextView
     private lateinit var textVideoSize: TextView
     private lateinit var buttonPlay: ImageButton
-    private lateinit var buttonPause: ImageButton // Retained for future use
+    private lateinit var buttonPause: ImageButton
     private lateinit var btnShare: Button
-    // private lateinit var thumbnailContainer: FrameLayout // Not strictly needed for simple alpha
 
     private var inputVideoUri: Uri? = null
     private var outputVideoUri: Uri? = null
     private var outputVideoMimeType: String = "video/mp4"
 
     private var isTranscodingComplete = false
-    private var isTranscodingPreviouslyStarted = false // To handle fade only once
+    private var isTranscodingPreviouslyStarted = false
+
+    // ActivityResultLauncher for notification permission
+    private val requestNotificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
+            if (isGranted) {
+                Log.d(TAG, "POST_NOTIFICATIONS permission granted.")
+                startTranscodingServiceAfterPermission()
+            } else {
+                Log.w(TAG, "POST_NOTIFICATIONS permission denied.")
+                Toast.makeText(this, getString(R.string.notification_permission_denied_message), Toast.LENGTH_LONG).show()
+                // Handle the case where permission is denied:
+                // - Disable features that require the service?
+                // - Show a more prominent message in textStatusInfo?
+                textStatusInfo.text = getString(R.string.notification_permission_required_status)
+                // Optionally, disable UI elements that depend on transcoding starting
+                btnShare.isEnabled = false
+                buttonPlay.isEnabled = false
+            }
+        }
 
     private val transcodingReceiver = object : BroadcastReceiver() {
+        // ... (existing receiver code)
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 TranscodingService.ACTION_TRANSCODING_PROGRESS -> {
@@ -63,13 +86,13 @@ class PreviewActivity : AppCompatActivity() {
                     if (outputUriString != null) {
                         outputVideoUri = Uri.parse(outputUriString)
                         Log.i(TAG, "Transcoding complete. Output: $outputVideoUri, Mime: $outputVideoMimeType")
-                        textStatusInfo.text = getString(R.string.transcoding_complete_status) // Using string resource
+                        textStatusInfo.text = getString(R.string.transcoding_complete_status)
                         progressBarTranscoding.progress = 100
                         isTranscodingComplete = true
                         btnShare.isEnabled = true
                         buttonPlay.visibility = View.VISIBLE
                         buttonPlay.isEnabled = true
-                        imageThumbnail.alpha = 0f // Ensure thumbnail is hidden
+                        imageThumbnail.alpha = 0f
                     } else {
                         Log.e(TAG, "Transcoding complete but output URI is null.")
                         textStatusInfo.text = getString(R.string.error_output_file_not_found)
@@ -85,8 +108,8 @@ class PreviewActivity : AppCompatActivity() {
                     isTranscodingComplete = false
                     btnShare.isEnabled = false
                     buttonPlay.isEnabled = false
-                    imageThumbnail.alpha = 1f // Show thumbnail again if error during transcoding
-                    isTranscodingPreviouslyStarted = false // Reset fade state
+                    imageThumbnail.alpha = 1f
+                    isTranscodingPreviouslyStarted = false
                 }
             }
         }
@@ -106,7 +129,7 @@ class PreviewActivity : AppCompatActivity() {
         btnShare = findViewById(R.id.btn_share_transcoded)
 
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        supportActionBar?.title = getString(R.string.preview_activity_title) // Using string resource
+        supportActionBar?.title = getString(R.string.preview_activity_title)
 
         val inputUriString = intent.getStringExtra(EXTRA_INPUT_VIDEO_URI)
         val initialOutputUriString = intent.getStringExtra(EXTRA_OUTPUT_VIDEO_URI)
@@ -121,27 +144,38 @@ class PreviewActivity : AppCompatActivity() {
         inputVideoUri = Uri.parse(inputUriString)
         Log.d(TAG, "Received input video URI: $inputVideoUri")
 
+        loadThumbnail(inputVideoUri!!)
+        displayVideoSize(inputVideoUri!!)
+
         if (initialOutputUriString != null) {
             outputVideoUri = Uri.parse(initialOutputUriString)
             outputVideoMimeType = initialOutputMimeType ?: "video/mp4"
             isTranscodingComplete = true
-            isTranscodingPreviouslyStarted = true // Assume fade happened if output is already there
+            isTranscodingPreviouslyStarted = true
             textStatusInfo.text = getString(R.string.transcoding_complete_status)
             progressBarTranscoding.progress = 100
             imageThumbnail.alpha = 0f
             Log.d(TAG, "Activity started with already transcoded video URI: $outputVideoUri")
+            btnShare.isEnabled = true
+            buttonPlay.isEnabled = true
+            buttonPlay.visibility = View.VISIBLE
         } else {
-            textStatusInfo.text = getString(R.string.starting_transcoding_status)
-            TranscodingService.startTranscoding(this, inputVideoUri!!)
+            // Request permission before starting service
+            checkAndRequestNotificationPermission()
+            // TranscodingService.startTranscoding will be called by startTranscodingServiceAfterPermission()
+            // if permission is granted or already available.
+            // Set initial status. If permission is denied, this might be overwritten.
+             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                textStatusInfo.text = getString(R.string.starting_transcoding_status)
+            } else {
+                 textStatusInfo.text = getString(R.string.notification_permission_pending_status)
+            }
+            btnShare.isEnabled = false // Initially false until transcoding completes
+            buttonPlay.isEnabled = false
+            buttonPlay.visibility = View.GONE
         }
 
-        loadThumbnail(inputVideoUri!!)
-        displayVideoSize(inputVideoUri!!)
-
-        btnShare.isEnabled = isTranscodingComplete
-        buttonPlay.isEnabled = isTranscodingComplete
-        buttonPlay.visibility = if (isTranscodingComplete) View.VISIBLE else View.GONE
-        buttonPause.visibility = View.GONE // Not used for now
+        buttonPause.visibility = View.GONE
 
         btnShare.setOnClickListener { shareTranscodedVideo() }
         buttonPlay.setOnClickListener { playTranscodedVideo() }
@@ -151,7 +185,6 @@ class PreviewActivity : AppCompatActivity() {
             addAction(TranscodingService.ACTION_TRANSCODING_COMPLETE)
             addAction(TranscodingService.ACTION_TRANSCODING_ERROR)
         }
-        // For Android 13 (API 33) and above, need to specify receiver export status
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(transcodingReceiver, intentFilter, Context.RECEIVER_NOT_EXPORTED)
         } else {
@@ -159,6 +192,53 @@ class PreviewActivity : AppCompatActivity() {
         }
     }
 
+    private fun checkAndRequestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            when {
+                ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED -> {
+                    Log.d(TAG, "POST_NOTIFICATIONS permission already granted.")
+                    startTranscodingServiceAfterPermission()
+                }
+                shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) -> {
+                    // Show an explanation to the user *asynchronously*
+                    // This is a good place to show a dialog explaining why the permission is needed.
+                    // For this example, we'll log and proceed to request.
+                    Log.i(TAG, "Showing rationale for POST_NOTIFICATIONS permission.")
+                    // Here you would typically show a dialog. After dialog, user might trigger request again.
+                    // For now, just request directly.
+                    requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+                else -> {
+                    // Directly request the permission
+                    Log.d(TAG, "Requesting POST_NOTIFICATIONS permission.")
+                    requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+        } else {
+            // Pre-Tiramisu, no runtime permission needed for notifications in this context
+            Log.d(TAG, "No runtime POST_NOTIFICATIONS permission needed for this Android version.")
+            startTranscodingServiceAfterPermission()
+        }
+    }
+
+    private fun startTranscodingServiceAfterPermission() {
+        if (inputVideoUri != null && !isTranscodingComplete) { // Check if not already completed
+            Log.d(TAG, "Permission OK or not required. Starting TranscodingService.")
+            textStatusInfo.text = getString(R.string.starting_transcoding_status)
+            TranscodingService.startTranscoding(this, inputVideoUri!!)
+        } else if (isTranscodingComplete) {
+            Log.d(TAG, "Transcoding was already complete, not restarting service.")
+        }
+         else {
+            Log.e(TAG, "Input URI is null, cannot start transcoding service.")
+            // This case should ideally be prevented by the initial null check in onCreate
+        }
+    }
+
+    // ... (loadThumbnail, displayVideoSize, formatFileSize, animateThumbnailFadeOut, playTranscodedVideo, shareTranscodedVideo, onDestroy, onOptionsItemSelected methods remain the same)
     private fun loadThumbnail(videoUri: Uri) {
         Log.d(TAG, "Loading thumbnail for $videoUri")
         Glide.with(this)
@@ -274,8 +354,6 @@ class PreviewActivity : AppCompatActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             android.R.id.home -> {
-                // If transcoding is in progress, ask user for confirmation? Or stop transcoding?
-                // For now, just navigate up.
                 finish()
                 true
             }
@@ -284,21 +362,9 @@ class PreviewActivity : AppCompatActivity() {
     }
 }
 
-// Add necessary string resources to res/values/strings.xml:
+// Add necessary new string resources to res/values/strings.xml:
 /*
-<string name="preview_activity_title">Preview &amp; Transcode</string>
-<string name="transcoding_complete_status">Transcoding complete!</string>
-<string name="error_output_file_not_found">Error: Output file not found.</string>
-<string name="error_transcoding_message">Error: %s</string>
-<string name="unknown_error">Unknown error</string>
-<string name="error_input_video_not_specified">Error: Input video not specified.</string>
-<string name="starting_transcoding_status">Starting transcoding…</string>
-<string name="size_not_available">Size N/A</string>
-<string name="video_not_ready_error">Video not ready or error in transcoding.</string>
-<string name="no_app_to_play_video">No app found to play this video.</string>
-<string name="video_not_ready_for_sharing">Video is not ready for sharing.</string>
-<string name="error_preparing_video_for_sharing">Error preparing video for sharing.</string>
-<string name="share_video_title">Share Transcoded Video</string>
-<string name="no_app_to_share_video">No app found to handle sharing video.</string>
-<string name="error_preparing_video_playback">Error preparing video for playback.</string>
+<string name="notification_permission_denied_message">Notification permission denied. Transcoding status updates will not be shown.</string>
+<string name="notification_permission_required_status">Notification permission is required to show transcoding progress. Please grant the permission.</string>
+<string name="notification_permission_pending_status">Waiting for notification permission...</string>
 */
