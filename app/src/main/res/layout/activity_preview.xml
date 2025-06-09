@@ -57,7 +57,6 @@
 
     <com.google.android.material.progressindicator.LinearProgressIndicator
         android:id="@+id/progressbar_transcoding"
-        style="@style/Widget.App.LinearProgressIndicator" <!-- Applied style -->
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_above="@+id/btn_share_transcoded"
@@ -66,9 +65,9 @@
         android:layout_marginBottom="16dp"
         android:indeterminate="false"
         android:max="100"
-        app:indicatorColor="?attr/colorPrimary" <!-- Retained for clarity, though style might set it -->
-        app:trackColor="?attr/colorSurfaceVariant" <!-- Retained for clarity, though style might set it -->
         tools:progress="50"/>
+        <!-- The style is applied via theme attribute linearProgressIndicatorStyle -->
+        <!-- app:indicatorColor and app:trackColor removed to rely on theme's style -->
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btn_share_transcoded"
