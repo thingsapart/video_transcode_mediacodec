@@ -58,6 +58,21 @@ class VideoTranscoder(private val context: Context) {
 
         var muxerStarted = false
 
+        // Helper function to start muxer once all tracks are ready
+        fun tryStartMuxerLocally() {
+            if (!muxerStarted) {
+                val videoTrackReady = muxerVideoTrackIndex != -1
+                // Audio is ready if there's no audio track, or if the audio track has been added to muxer
+                val audioTrackReady = inputAudioTrackIndex == -1 || muxerAudioTrackIndex != -1
+
+                if (videoTrackReady && audioTrackReady) {
+                    Log.d(TAG, "All necessary tracks added. Starting muxer.")
+                    muxer!!.start() // muxer should not be null here
+                    muxerStarted = true
+                }
+            }
+        }
+
         try {
             extractor = MediaExtractor()
             context.contentResolver.openFileDescriptor(inputVideoUri, "r")?.use { pfd ->
@@ -178,9 +193,13 @@ class VideoTranscoder(private val context: Context) {
                         val encOutBuffer = videoEncoder.getOutputBuffer(encOutIdx)!!
                         if (muxerVideoTrackIndex == -1) throw IllegalStateException("Muxer video track not added yet. Encoder format change not handled before data.")
 
-                        encOutBuffer.position(videoBufferInfo.offset)
-                        encOutBuffer.limit(videoBufferInfo.offset + videoBufferInfo.size)
-                        muxer.writeSampleData(muxerVideoTrackIndex, encOutBuffer, videoBufferInfo)
+                        if (muxerStarted) {
+                            encOutBuffer.position(videoBufferInfo.offset)
+                            encOutBuffer.limit(videoBufferInfo.offset + videoBufferInfo.size)
+                            muxer.writeSampleData(muxerVideoTrackIndex, encOutBuffer, videoBufferInfo)
+                        } else {
+                            Log.w(TAG, "Muxer not started, dropping video sample. PresentationTimeUs: ${videoBufferInfo.presentationTimeUs}")
+                        }
                         videoEncoder.releaseOutputBuffer(encOutIdx, false)
                     }
                 } else if (encOutIdx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
@@ -188,11 +207,7 @@ class VideoTranscoder(private val context: Context) {
                     if (muxerVideoTrackIndex == -1) {
                          muxerVideoTrackIndex = muxer.addTrack(newFormat)
                          Log.d(TAG, "Video Encoder output format changed: $newFormat. Added video track to muxer: $muxerVideoTrackIndex")
-                         if ((inputAudioTrackIndex == -1 || muxerAudioTrackIndex != -1) && !muxerStarted) {
-                            Log.d(TAG, "Muxer starting (from video path).")
-                            muxer.start()
-                            muxerStarted = true
-                         }
+                         tryStartMuxerLocally()
                     }
                 }
             }
@@ -268,9 +283,13 @@ class VideoTranscoder(private val context: Context) {
                             val encOutBuffer = audioEncoder.getOutputBuffer(encOutIdx)!!
                              if (muxerAudioTrackIndex == -1) throw IllegalStateException("Muxer audio track not added yet. Encoder format change not handled.")
 
-                            encOutBuffer.position(audioBufferInfo.offset)
-                            encOutBuffer.limit(audioBufferInfo.offset + audioBufferInfo.size)
-                            muxer.writeSampleData(muxerAudioTrackIndex, encOutBuffer, audioBufferInfo)
+                            if (muxerStarted) {
+                                encOutBuffer.position(audioBufferInfo.offset)
+                                encOutBuffer.limit(audioBufferInfo.offset + audioBufferInfo.size)
+                                muxer.writeSampleData(muxerAudioTrackIndex, encOutBuffer, audioBufferInfo)
+                            } else {
+                                Log.w(TAG, "Muxer not started, dropping audio sample. PresentationTimeUs: ${audioBufferInfo.presentationTimeUs}")
+                            }
                             audioEncoder.releaseOutputBuffer(encOutIdx, false)
                         }
                     } else if (encOutIdx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
@@ -278,22 +297,17 @@ class VideoTranscoder(private val context: Context) {
                         if (muxerAudioTrackIndex == -1) { // Should only be -1
                             muxerAudioTrackIndex = muxer.addTrack(newFormat)
                             Log.d(TAG, "Audio Encoder output format changed: $newFormat. Added audio track to muxer: $muxerAudioTrackIndex")
-                            if (muxerVideoTrackIndex != -1 && !muxerStarted) {
-                                Log.d(TAG, "Muxer starting (from audio path).")
-                                muxer.start()
-                                muxerStarted = true
-                            }
+                            tryStartMuxerLocally()
                         }
                     }
                 }
                 Log.d(TAG, "Audio Processing Pass COMPLETED.")
             }
 
-            if (!muxerStarted && muxerVideoTrackIndex != -1) {
-                Log.i(TAG, "Muxer starting (likely video-only or audio processing skipped/failed before muxer start).")
-                muxer.start()
-                muxerStarted = true
-            }
+            // The tryStartMuxerLocally() calls should handle all valid scenarios.
+            // If muxer hasn't started by now and tracks were expected, it might indicate an issue.
+            // However, the old final check was a bit of a catch-all which might hide issues.
+            // Relying on tryStartMuxerLocally is cleaner.
 
             Log.i(TAG, "Transcoding processing loop finished for all tracks.")
 
