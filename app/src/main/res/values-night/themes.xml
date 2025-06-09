@@ -1,25 +1,35 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Base application theme for night mode. -->
-    <!-- For this iteration, the night theme will be similar to the day theme.
-         A true dark pastel theme would require a different color set. -->
+    <!-- For this iteration, the night theme will use the lolly pastel colors.
+         A true dark pastel theme might involve defining specific darker pastel variants in colors.xml. -->
     <style name="Theme.VideoTranscoder.AppTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <!-- Primary brand color. -->
-        <item name="colorPrimary">@color/pastel_primary</item> <!-- Consider darker pastels for night -->
-        <item name="colorPrimaryVariant">@color/pastel_primary_variant</item> <!-- Consider darker pastels for night -->
-        <item name="colorOnPrimary">@color/pastel_on_primary</item>
-        <!-- Secondary brand color. -->
-        <item name="colorSecondary">@color/pastel_secondary</item> <!-- Consider darker pastels for night -->
-        <item name="colorSecondaryVariant">@color/pastel_secondary_variant</item> <!-- Consider darker pastels for night -->
-        <item name="colorOnSecondary">@color/pastel_on_secondary</item>
+        <!-- Primary brand color - using day colors, consider defining specific night variants if needed -->
+        <item name="colorPrimary">@color/lolly_primary</item>
+        <item name="colorPrimaryVariant">@color/lolly_primary_variant</item>
+        <item name="colorOnPrimary">@color/lolly_on_primary</item> <!-- Ensure contrast with lolly_primary -->
+        <!-- Secondary brand color - using day colors, consider defining specific night variants if needed -->
+        <item name="colorSecondary">@color/lolly_secondary</item>
+        <item name="colorSecondaryVariant">@color/lolly_secondary_variant</item>
+        <item name="colorOnSecondary">@color/lolly_on_secondary</item> <!-- Ensure contrast with lolly_secondary -->
+
+        <!-- Background, Surface, Error colors -->
+        <!-- For night theme, using a dark background with light text -->
+        <item name="android:colorBackground">@color/lolly_on_background</item> <!-- Dark Gray -->
+        <item name="colorOnBackground">@color/lolly_background</item> <!-- Light Linen/Beige text -->
+
+        <item name="colorSurface">@color/lolly_on_background</item> <!-- Dark Gray for surfaces like cards -->
+        <item name="colorOnSurface">@color/lolly_background</item> <!-- Light Linen/Beige text on surfaces -->
+
+        <item name="colorError">@color/lolly_error</item> <!-- Muted Pastel Red -->
+        <item name="colorOnError">@color/lolly_on_error</item> <!-- White text on error -->
+
         <!-- Status bar color. -->
         <item name="android:statusBarColor" tools:targetApi="l">?attr/colorPrimaryVariant</item>
-        <!-- Background color. -->
-        <item name="android:colorBackground">@color/pastel_on_background</item> <!-- Use a dark background for night -->
-        <item name="colorSurface">@color/pastel_on_background</item> <!-- Dark surface for night -->
-        <item name="colorError">@color/pastel_error</item>
-        <!-- Text/icon colors on backgrounds -->
-        <item name="colorOnBackground">@color/pastel_background</item> <!-- Light text on dark background -->
-        <item name="colorOnSurface">@color/pastel_background</item> <!-- Light text on dark background -->
-        <item name="colorOnError">@color/pastel_on_error</item>
+        <!-- Customize your theme here. -->
+        <item name="buttonStyle">@style/Lolly.Button</item>
+        <!-- Ensure button text/background provides enough contrast in night mode -->
+        <!-- The Lolly.Button uses lolly_button_default_background (@color/lolly_primary)
+             and lolly_button_default_text (@color/lolly_on_primary).
+             lolly_primary is Soft Pastel Blue, lolly_on_primary is Black. This should be acceptable. -->
     </style>
 </resources>

@@ -39,6 +39,18 @@
             android:background="#80000000" <!-- Semi-transparent background -->
             android:textColor="@android:color/white"
             tools:text="12.5 MB" />
+
+        <!-- Estimated Output Video Size Text -->
+        <TextView
+            android:id="@+id/text_estimated_output_size"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:layout_margin="8dp"
+            android:padding="4dp"
+            android:background="#80000000" <!-- Semi-transparent background -->
+            android:textColor="@android:color/white"
+            tools:text="Est. Output: ~5.2 MB/min" />
     </FrameLayout>
 
     <!-- Barrier to position controls and progress below thumbnail area and above bottom button -->
@@ -71,7 +83,8 @@
             android:background="@drawable/bg_control_button_pastel"
             android:padding="12dp" <!-- Adjust padding for icon size -->
             android:scaleType="fitCenter"
-            android:layout_marginEnd="16dp"/>
+            android:layout_marginEnd="16dp"
+            android:foreground="?attr/selectableItemBackgroundBorderless"/>
 
         <ImageButton
             android:id="@+id/button_pause"
@@ -82,7 +95,8 @@
             android:background="@drawable/bg_control_button_pastel"
             android:padding="12dp" <!-- Adjust padding for icon size -->
             android:scaleType="fitCenter"
-            android:visibility="gone"/> <!-- Initially hidden -->
+            android:visibility="gone"
+            android:foreground="?attr/selectableItemBackgroundBorderless"/> <!-- Initially hidden -->
     </LinearLayout>
 
     <!-- Progress Bar for Transcoding -->
@@ -96,7 +110,10 @@
         app:layout_constraintBottom_toTopOf="@+id/text_status_info"
         android:layout_marginBottom="4dp"
         android:max="100"
-        tools:progress="50" />
+        tools:progress="50"
+        android:progressTint="?attr/colorSecondary"
+        android:secondaryProgressTint="?attr/colorPrimaryVariant"
+        android:progressBackgroundTint="@color/lolly_pastel_mint" />
 
     <!-- Status Text -->
     <TextView

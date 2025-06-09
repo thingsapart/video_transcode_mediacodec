@@ -9,20 +9,49 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
-    <!-- New Pastel Theme Colors -->
-    <color name="pastel_primary">#80CBC4</color> <!-- Soft Muted Teal -->
-    <color name="pastel_primary_variant">#4DB6AC</color> <!-- Darker Muted Teal -->
-    <color name="pastel_on_primary">#FFFFFF</color>
+    <!-- Lollipop Bubbly Pastel Theme Colors -->
+    <!-- Primary Colors -->
+    <color name="lolly_primary">#AED9E0</color> <!-- Soft Pastel Blue -->
+    <color name="lolly_primary_variant">#8AB6C1</color> <!-- Darker Pastel Blue -->
+    <color name="lolly_on_primary">#000000</color> <!-- Black for contrast on light blue -->
 
-    <color name="pastel_secondary">#F8BBD0</color> <!-- Playful Pastel Pink -->
-    <color name="pastel_secondary_variant">#F48FB1</color> <!-- Darker Pastel Pink -->
-    <color name="pastel_on_secondary">#000000</color>
+    <!-- Secondary Colors -->
+    <color name="lolly_secondary">#FFC0CB</color> <!-- Pastel Pink -->
+    <color name="lolly_secondary_variant">#FFAAB7</color> <!-- Darker Pastel Pink -->
+    <color name="lolly_on_secondary">#000000</color> <!-- Black for contrast on light pink -->
 
-    <color name="pastel_background">#FFFDEB</color> <!-- Very Light Pastel Yellow/Cream -->
-    <color name="pastel_surface">#FFFFFF</color>
-    <color name="pastel_error">#EF9A9A</color> <!-- Muted Pastel Red -->
+    <!-- Background, Surface, Error Colors -->
+    <color name="lolly_background">#FAF0E6</color> <!-- Pastel Linen / Light Beige -->
+    <color name="lolly_on_background">#363636</color> <!-- Dark Gray for text -->
 
-    <color name="pastel_on_background">#212121</color> <!-- Dark Gray -->
-    <color name="pastel_on_surface">#212121</color> <!-- Dark Gray -->
-    <color name="pastel_on_error">#000000</color>
+    <color name="lolly_surface">#FFFFFF</color> <!-- White for cards, sheets -->
+    <color name="lolly_on_surface">#363636</color> <!-- Dark Gray for text on surface -->
+
+    <color name="lolly_error">#FF9A9A</color> <!-- Muted Pastel Red -->
+    <color name="lolly_on_error">#FFFFFF</color> <!-- White for text on error color -->
+
+    <!-- Additional Accent Colors (Muted Pastel & Bubbly) -->
+    <color name="lolly_pastel_sky_blue">#B2EBF2</color> <!-- Light Sky Blue -->
+    <color name="lolly_on_pastel_sky_blue">#000000</color>
+
+    <color name="lolly_pastel_lime_green">#DCE775</color> <!-- Lime Green -->
+    <color name="lolly_on_pastel_lime_green">#000000</color>
+
+    <color name="lolly_pastel_lavender">#E1BEE7</color> <!-- Lavender -->
+    <color name="lolly_on_pastel_lavender">#000000</color>
+
+    <color name="lolly_pastel_peach">#FFDAB9</color> <!-- Peach -->
+    <color name="lolly_on_pastel_peach">#000000</color>
+
+    <color name="lolly_pastel_mint">#C8E6C9</color> <!-- Mint -->
+    <color name="lolly_on_pastel_mint">#000000</color>
+
+    <!-- Specific UI element colors, if needed -->
+    <color name="lolly_button_default_background">@color/lolly_primary</color>
+    <color name="lolly_button_default_text">@color/lolly_on_primary</color>
+
+    <!-- Colors for drawable states -->
+    <color name="lolly_pastel_sky_blue_dark">#81D4FA</color> <!-- Darker Sky Blue for pressed state -->
+    <color name="lolly_disabled_bg">#E0E0E0</color> <!-- Light Gray for disabled state -->
+    <color name="lolly_on_disabled_bg">#A0A0A0</color> <!-- Medium Gray for text on disabled state -->
 </resources>
