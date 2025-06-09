@@ -216,7 +216,7 @@ class VideoTranscoder(private val context: Context) {
 
                     // Audio Decoder to Encoder
                     if (!audioDecoderDone) {
-                        val decOutIdx = audioDecoder.dequeueOutputBuffer(audioBufferInfo, TIMEOUT_US)
+                        val decOutIdx = audioDecoder?.dequeueOutputBuffer(audioBufferInfo, TIMEOUT_US) ?: -1
                         if (decOutIdx >= 0) {
                              if (audioBufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
                                 Log.d(TAG, "Audio Decoder EOS")
@@ -224,17 +224,25 @@ class VideoTranscoder(private val context: Context) {
                                 audioEncoder!!.signalEndOfInputStream()
                             }
                             if (audioBufferInfo.size > 0 && (audioBufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0)) {
-                                val decOutBuffer = audioDecoder.getOutputBuffer(decOutIdx)!!
-                                val encInIdx = audioEncoder!!.dequeueInputBuffer(TIMEOUT_US)
-                                if (encInIdx >= 0) {
-                                    val encInBuffer = audioEncoder.getInputBuffer(encInIdx)!!
-                                    encInBuffer.put(decOutBuffer)
-                                    audioEncoder.queueInputBuffer(encInIdx, 0, audioBufferInfo.size, audioBufferInfo.presentationTimeUs, audioBufferInfo.flags)
+                                val decOutBuffer = audioDecoder?.getOutputBuffer(decOutIdx)
+                                decOutBuffer?.let {
+                                    val encInIdx = audioEncoder!!.dequeueInputBuffer(TIMEOUT_US)
+                                    if (encInIdx >= 0) {
+                                        val encInBuffer = audioEncoder.getInputBuffer(encInIdx)!!
+                                        encInBuffer.put(decOutBuffer)
+                                        audioEncoder.queueInputBuffer(
+                                            encInIdx,
+                                            0,
+                                            audioBufferInfo.size,
+                                            audioBufferInfo.presentationTimeUs,
+                                            audioBufferInfo.flags
+                                        )
+                                    }
                                 }
                             }
-                            audioDecoder.releaseOutputBuffer(decOutIdx, false)
+                            audioDecoder?.releaseOutputBuffer(decOutIdx, false)
                         } else if (decOutIdx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-                             Log.d(TAG, "Audio Decoder output format changed: " + audioDecoder.outputFormat)
+                             Log.d(TAG, "Audio Decoder output format changed: " + audioDecoder?.outputFormat)
                         }
                     }
 
@@ -246,7 +254,7 @@ class VideoTranscoder(private val context: Context) {
                             audioEncoderDone = true
                         }
                          if (audioBufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) {
-                            audioEncoder.releaseOutputBuffer(encOutIdx, false)
+                            audioEncoder?.releaseOutputBuffer(encOutIdx, false)
                         } else if (audioBufferInfo.size > 0) {
                             val encOutBuffer = audioEncoder.getOutputBuffer(encOutIdx)!!
                              if (muxerAudioTrackIndex == -1) throw IllegalStateException("Muxer audio track not added yet. Encoder format change not handled.")
