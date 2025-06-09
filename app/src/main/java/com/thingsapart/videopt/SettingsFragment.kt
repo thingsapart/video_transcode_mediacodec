@@ -188,7 +188,8 @@ class SettingsFragment : PreferenceFragmentCompat(), SharedPreferences.OnSharedP
                 val newFormat = settingsManager.loadFormat()
                 Log.d(TAG, "Format changed to: $newFormat. Updating capabilities.")
                 updateCapabilitiesForFormat(newFormat)
-                // No need to call updateEstimatedSize here if PREF_RESOLUTION will also change
+                // Always update estimated size after format change, as capabilities and potentially resolution might have changed.
+                updateEstimatedSize()
             }
             SettingsManager.PREF_RESOLUTION,
             SettingsManager.PREF_QUALITY,
