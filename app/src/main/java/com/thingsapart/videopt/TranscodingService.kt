@@ -126,6 +126,35 @@ class TranscodingService : Service() {
                         }
                     }
 
+                    // Retrieve source video dimensions to prevent accidental upscaling or to adjust if downscaling is selected
+                    val retriever = MediaMetadataRetriever()
+                    var sourceWidth: Int? = null
+                    var sourceHeight: Int? = null
+                    var sourceMimeType: String? = null // Also get source MIME type
+
+                    try {
+                        retriever.setDataSource(applicationContext, inputVideoUri)
+                        sourceWidth = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull()
+                        sourceHeight = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull()
+                        sourceMimeType = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE) // Get source video MIME
+                        Log.d(TAG, "Source video properties: Width=$sourceWidth, Height=$sourceHeight, Mime=$sourceMimeType")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to retrieve source video metadata", e)
+                        // If we can't get source metadata, we can't safely compare.
+                        // For now, let it proceed, but log error.
+                    } finally {
+                        retriever.release()
+                    }
+
+                    if (sourceWidth != null && sourceHeight != null && actualTargetWidth != null && actualTargetHeight != null) {
+                        if (sourceWidth > actualTargetWidth || sourceHeight > actualTargetHeight) {
+                            Log.w(TAG, "Selected target resolution ($actualTargetWidth x $actualTargetHeight) is smaller than source ($sourceWidth x $sourceHeight). Forcing original resolution to prevent crash. Scaling not yet supported.")
+                            actualTargetWidth = sourceWidth
+                            actualTargetHeight = sourceHeight
+                            // Optional: Consider updating targetVideoMimeUserSetting = sourceMimeType ?: targetVideoMimeUserSetting
+                        }
+                    }
+
                     val videoFormat = MediaFormat.createVideoFormat(targetVideoMimeUserSetting, actualTargetWidth!!, actualTargetHeight!!)
                     finalOutputMimeType = targetVideoMimeUserSetting // Store the actual MIME type used
 
@@ -151,8 +180,17 @@ class TranscodingService : Service() {
                     sendBroadcastResult(ACTION_TRANSCODING_COMPLETE, Uri.fromFile(File(outputVideoPath)).toString(), outputMimeType = finalOutputMimeType)
 
                 } catch (e: Exception) {
-                    Log.e(TAG, "Transcoding failed", e)
-                    sendBroadcastResult(ACTION_TRANSCODING_ERROR, errorMessage = e.message ?: "Unknown transcoding error")
+                    val currentVideoFormatDetails = "TargetFormat: ${targetVideoMimeUserSetting}, ${actualTargetWidth}x${actualTargetHeight}"
+                    val errorType = e.javaClass.simpleName
+                    val specificMessage = when (e) {
+                        is java.nio.BufferOverflowException -> "Buffer overflow. This often occurs if source video resolution is larger than target, and scaling is not applied. $currentVideoFormatDetails"
+                        is IllegalArgumentException, is IllegalStateException -> "Codec or parameter error. ${e.localizedMessage ?: ""} $currentVideoFormatDetails"
+                        is java.io.IOException -> "I/O error during transcoding. ${e.localizedMessage ?: ""} $currentVideoFormatDetails"
+                        else -> "Unexpected error: ${e.localizedMessage ?: "No specific details."} $currentVideoFormatDetails"
+                    }
+                    val finalErrorMessage = "$errorType: $specificMessage"
+                    Log.e(TAG, "Transcoding failed: $finalErrorMessage", e) // Log the original exception too
+                    sendBroadcastResult(ACTION_TRANSCODING_ERROR, errorMessage = finalErrorMessage)
                 } finally {
                     Log.d(TAG, "Transcoding process finished. Stopping service.")
                     stopSelf()
