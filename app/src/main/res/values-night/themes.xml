@@ -1,25 +1,4 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme for night mode. -->
-    <!-- For this iteration, the night theme will be similar to the day theme.
-         A true dark pastel theme would require a different color set. -->
-    <style name="Theme.VideoTranscoder.AppTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <!-- Primary brand color. -->
-        <item name="colorPrimary">@color/pastel_primary</item> <!-- Consider darker pastels for night -->
-        <item name="colorPrimaryVariant">@color/pastel_primary_variant</item> <!-- Consider darker pastels for night -->
-        <item name="colorOnPrimary">@color/pastel_on_primary</item>
-        <!-- Secondary brand color. -->
-        <item name="colorSecondary">@color/pastel_secondary</item> <!-- Consider darker pastels for night -->
-        <item name="colorSecondaryVariant">@color/pastel_secondary_variant</item> <!-- Consider darker pastels for night -->
-        <item name="colorOnSecondary">@color/pastel_on_secondary</item>
-        <!-- Status bar color. -->
-        <item name="android:statusBarColor" tools:targetApi="l">?attr/colorPrimaryVariant</item>
-        <!-- Background color. -->
-        <item name="android:colorBackground">@color/pastel_on_background</item> <!-- Use a dark background for night -->
-        <item name="colorSurface">@color/pastel_on_background</item> <!-- Dark surface for night -->
-        <item name="colorError">@color/pastel_error</item>
-        <!-- Text/icon colors on backgrounds -->
-        <item name="colorOnBackground">@color/pastel_background</item> <!-- Light text on dark background -->
-        <item name="colorOnSurface">@color/pastel_background</item> <!-- Light text on dark background -->
-        <item name="colorOnError">@color/pastel_on_error</item>
+    <style name="Theme.VideoTranscoder" parent="android:Theme.DeviceDefault.NoActionBar">
     </style>
 </resources>

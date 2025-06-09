@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Original colors (can be kept for reference or removed if not used) -->
     <color name="purple_200">#FFBB86FC</color>
     <color name="purple_500">#FF6200EE</color>
     <color name="purple_700">#FF3700B3</color>
@@ -8,21 +7,4 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-
-    <!-- New Pastel Theme Colors -->
-    <color name="pastel_primary">#80CBC4</color> <!-- Soft Muted Teal -->
-    <color name="pastel_primary_variant">#4DB6AC</color> <!-- Darker Muted Teal -->
-    <color name="pastel_on_primary">#FFFFFF</color>
-
-    <color name="pastel_secondary">#F8BBD0</color> <!-- Playful Pastel Pink -->
-    <color name="pastel_secondary_variant">#F48FB1</color> <!-- Darker Pastel Pink -->
-    <color name="pastel_on_secondary">#000000</color>
-
-    <color name="pastel_background">#FFFDEB</color> <!-- Very Light Pastel Yellow/Cream -->
-    <color name="pastel_surface">#FFFFFF</color>
-    <color name="pastel_error">#EF9A9A</color> <!-- Muted Pastel Red -->
-
-    <color name="pastel_on_background">#212121</color> <!-- Dark Gray -->
-    <color name="pastel_on_surface">#212121</color> <!-- Dark Gray -->
-    <color name="pastel_on_error">#000000</color>
 </resources>
