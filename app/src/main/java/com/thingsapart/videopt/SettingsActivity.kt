@@ -94,11 +94,18 @@ class SettingsActivity : Activity() {
         spinnerAudioBitrate = findViewById(R.id.spinner_audio_bitrate)
         textViewEstimatedSize = findViewById(R.id.textview_estimated_size)
 
-        queryCodecCapabilities()
+        // Corrected initialization order:
+        // 1. Setup spinners with adapters and initial default lists
         setupSpinners()
+        // 2. Query codec capabilities, which will call updateCapabilitiesForFormat.
+        //    updateCapabilitiesForFormat will now safely use the initialized adapters.
+        queryCodecCapabilities()
+        // 3. Load settings, which might trigger listeners or update text,
+        //    potentially calling updateCapabilitiesForFormat again.
         loadSettings()
+        // 4. Setup remaining listeners
         setupListeners()
-        Log.d(TAG, "onCreate: UI initialized and listeners set up")
+        Log.d(TAG, "onCreate: UI initialized and listeners set up with corrected order.")
     }
 
     private fun getFormatDisplayName(mimeType: String): String {
