@@ -126,43 +126,8 @@ class TranscodingService : Service() {
                         }
                     }
 
-                    // Retrieve source video dimensions to prevent accidental upscaling or to adjust if downscaling is selected
-                    val retriever = MediaMetadataRetriever()
-                    var sourceWidth: Int? = null
-                    var sourceHeight: Int? = null
-                    var sourceMimeType: String? = null // Also get source MIME type
-
-                    try {
-                        retriever.setDataSource(applicationContext, inputVideoUri)
-                        sourceWidth = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull()
-                        sourceHeight = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull()
-                        sourceMimeType = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE) // Get source video MIME
-                        Log.d(TAG, "Source video properties: Width=$sourceWidth, Height=$sourceHeight, Mime=$sourceMimeType")
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to retrieve source video metadata", e)
-                        // If we can't get source metadata, we can't safely compare.
-                        // For now, let it proceed, but log error.
-                    } finally {
-                        retriever.release()
-                    }
-
-                    if (sourceWidth != null && sourceHeight != null && actualTargetWidth != null && actualTargetHeight != null) {
-                        if (sourceWidth > actualTargetWidth || sourceHeight > actualTargetHeight) {
-                            Log.w(TAG, "Selected target resolution ($actualTargetWidth x $actualTargetHeight) is smaller than source ($sourceWidth x $sourceHeight). Forcing original resolution to prevent crash. Scaling not yet supported.")
-                            actualTargetWidth = sourceWidth
-                            actualTargetHeight = sourceHeight
-                            // Optional: Consider updating targetVideoMimeUserSetting = sourceMimeType ?: targetVideoMimeUserSetting
-                        }
-                    }
-
                     val videoFormat = MediaFormat.createVideoFormat(targetVideoMimeUserSetting, actualTargetWidth!!, actualTargetHeight!!)
                     finalOutputMimeType = targetVideoMimeUserSetting // Store the actual MIME type used
-
-                    // Calculate and set KEY_MAX_INPUT_SIZE
-                    // Assuming YUV420 format (1.5 bytes per pixel)
-                    val calculatedMaxInputSize = (actualTargetWidth!! * actualTargetHeight!! * 3.0 / 2.0 * 1.25).toInt() // width * height * 1.5 * 1.25 (25% buffer)
-                    Log.d(TAG, "Setting KEY_MAX_INPUT_SIZE for encoder to: $calculatedMaxInputSize for ${actualTargetWidth}x${actualTargetHeight}")
-                    videoFormat.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, calculatedMaxInputSize)
 
                     // Now continue with other videoFormat settings:
                     val estimatedVideoBitrate = getEstimatedVideoBitrate(actualTargetWidth, actualTargetHeight, targetQuality, targetVideoMimeUserSetting)

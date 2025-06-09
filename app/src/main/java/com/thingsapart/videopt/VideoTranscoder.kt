@@ -7,6 +7,7 @@ import android.media.MediaFormat
 import android.media.MediaMuxer
 import android.net.Uri
 import android.util.Log
+import android.view.Surface
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
@@ -37,6 +38,7 @@ class VideoTranscoder(private val context: Context) {
         var audioDecoder: MediaCodec? = null
         var audioEncoder: MediaCodec? = null
         var muxer: MediaMuxer? = null
+        var encoderInputSurface: Surface? = null // Added for Surface transcoding
 
         var inputVideoTrackIndex = -1
         var inputAudioTrackIndex = -1
@@ -82,15 +84,16 @@ class VideoTranscoder(private val context: Context) {
 
             // Video pipeline setup
             val inputVideoMediaFormat = extractor.getTrackFormat(inputVideoTrackIndex)
-            // extractor.selectTrack(inputVideoTrackIndex) // Select track just before its processing pass
-            videoDecoder = MediaCodec.createDecoderByType(inputVideoMediaFormat.getString(MediaFormat.KEY_MIME)!!)
-            videoDecoder.configure(inputVideoMediaFormat, null, null, 0)
-            videoDecoder.start()
-
             videoEncoder = MediaCodec.createEncoderByType(targetVideoFormat.getString(MediaFormat.KEY_MIME)!!)
             videoEncoder.configure(targetVideoFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+            encoderInputSurface = videoEncoder.createInputSurface() // Create input surface from encoder
             videoEncoder.start()
-            Log.d(TAG, "Video Decoder & Encoder started.")
+
+            videoDecoder = MediaCodec.createDecoderByType(inputVideoMediaFormat.getString(MediaFormat.KEY_MIME)!!)
+            // Configure decoder to output to the encoder's surface
+            videoDecoder.configure(inputVideoMediaFormat, encoderInputSurface, null, 0)
+            videoDecoder.start()
+            Log.d(TAG, "Video Decoder & Encoder started (Surface-to-Surface).")
 
             // Audio pipeline setup (if audio track exists)
             if (inputAudioTrackIndex != -1) {
@@ -132,31 +135,37 @@ class VideoTranscoder(private val context: Context) {
                     }
                 }
 
-                // Video Decoder to Encoder
+                // Video Decoder to Encoder (Surface Path)
                 if (!videoDecoderDone) {
                     val decOutIdx = videoDecoder.dequeueOutputBuffer(videoBufferInfo, TIMEOUT_US)
                     if (decOutIdx >= 0) {
-                        if (videoBufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
+                        val isEOS = videoBufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0
+                        if (isEOS) {
                             Log.d(TAG, "Video Decoder EOS")
                             videoDecoderDone = true
-                            videoEncoder.signalEndOfInputStream()
+                            videoEncoder.signalEndOfInputStream() // Signal EOS to encoder via surface
                         }
-                        if (videoBufferInfo.size > 0 && (videoBufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0)) {
-                            val decOutBuffer = videoDecoder.getOutputBuffer(decOutIdx)!!
-                            val encInIdx = videoEncoder.dequeueInputBuffer(TIMEOUT_US)
-                            if (encInIdx >= 0) {
-                                val encInBuffer = videoEncoder.getInputBuffer(encInIdx)!!
-                                encInBuffer.put(decOutBuffer)
-                                videoEncoder.queueInputBuffer(encInIdx, 0, videoBufferInfo.size, videoBufferInfo.presentationTimeUs, videoBufferInfo.flags)
-                            }
-                        }
-                        videoDecoder.releaseOutputBuffer(decOutIdx, false)
+                        // Render the buffer to the surface if it contains data.
+                        // The surface is the encoder's input surface.
+                        // Release buffer and render to surface if size > 0 and not EOS (EOS frame might have size 0)
+                        // The prompt said: videoDecoder.releaseOutputBuffer(decOutIdx, videoBufferInfo.size != 0 && !videoDecoderDone)
+                        // Let's use videoBufferInfo.size > 0 as the condition to render.
+                        // If it's EOS, videoDecoderDone will be true, so the original condition becomes videoBufferInfo.size != 0 && !true -> false for render
+                        // This seems correct: render if size > 0, and if it's EOS, signal encoder but don't try to render the (potentially empty) EOS buffer.
+                        // However, MediaCodec typically expects EOS buffer to be rendered to propagate timestamp correctly.
+                        // Let's use: videoDecoder.releaseOutputBuffer(decOutIdx, videoBufferInfo.size > 0)
+                        // If it's EOS and size is 0, it won't render. If EOS and size > 0, it will.
+                        // The crucial part is videoEncoder.signalEndOfInputStream() for EOS.
+                        videoDecoder.releaseOutputBuffer(decOutIdx, videoBufferInfo.size > 0)
+
                     } else if (decOutIdx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-                        Log.d(TAG, "Video Decoder output format changed: " + videoDecoder.outputFormat)
+                        // This format change is for the decoder's output surface,
+                        // not directly relevant for encoder input buffers anymore.
+                        Log.d(TAG, "Video Decoder output format changed (to surface): " + videoDecoder.outputFormat)
                     }
                 }
 
-                // Video Encoder to Muxer
+                // Video Encoder to Muxer (remains largely the same)
                 val encOutIdx = videoEncoder.dequeueOutputBuffer(videoBufferInfo, TIMEOUT_US)
                 if (encOutIdx >= 0) {
                     if (videoBufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
@@ -293,18 +302,14 @@ class VideoTranscoder(private val context: Context) {
             throw e
         } finally {
             Log.d(TAG, "Releasing all resources...")
-            try { videoDecoder?.stop(); videoDecoder?.release(); Log.d(TAG, "Video Decoder released.") } catch (e: Exception) { Log.e(
-                TAG, "Err release videoDec", e) }
-            try { videoEncoder?.stop(); videoEncoder?.release(); Log.d(TAG, "Video Encoder released.") } catch (e: Exception) { Log.e(
-                TAG, "Err release videoEnc", e) }
+            try { videoDecoder?.stop(); videoDecoder?.release(); Log.d(TAG, "Video Decoder released.") } catch (e: Exception) { Log.e(TAG, "Err release videoDec", e) }
+            try { videoEncoder?.stop(); videoEncoder?.release(); Log.d(TAG, "Video Encoder released.") } catch (e: Exception) { Log.e(TAG, "Err release videoEnc", e) }
+            try { encoderInputSurface?.release(); Log.d(TAG, "Encoder Input Surface released.")} catch (e: Exception) { Log.e(TAG, "Err release encoderInputSurface", e)} // Release surface
             if (inputAudioTrackIndex != -1) { // Only release audio codecs if they were initialized
-                try { audioDecoder?.stop(); audioDecoder?.release(); Log.d(TAG, "Audio Decoder released.") } catch (e: Exception) { Log.e(
-                    TAG, "Err release audioDec", e) }
-                try { audioEncoder?.stop(); audioEncoder?.release(); Log.d(TAG, "Audio Encoder released.") } catch (e: Exception) { Log.e(
-                    TAG, "Err release audioEnc", e) }
+                try { audioDecoder?.stop(); audioDecoder?.release(); Log.d(TAG, "Audio Decoder released.") } catch (e: Exception) { Log.e(TAG, "Err release audioDec", e) }
+                try { audioEncoder?.stop(); audioEncoder?.release(); Log.d(TAG, "Audio Encoder released.") } catch (e: Exception) { Log.e(TAG, "Err release audioEnc", e) }
             }
-            try { extractor?.release(); Log.d(TAG, "Extractor released.") } catch (e: Exception) { Log.e(
-                TAG, "Err release extractor", e) }
+            try { extractor?.release(); Log.d(TAG, "Extractor released.") } catch (e: Exception) { Log.e(TAG, "Err release extractor", e) }
             try {
                 if (muxerStarted) muxer?.stop() // Only stop if started
                 muxer?.release()
