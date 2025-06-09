@@ -1,4 +1,4 @@
-package com.example.videotranscoder
+package com.thingsapart.videopt
 
 import android.content.Context
 import android.content.SharedPreferences

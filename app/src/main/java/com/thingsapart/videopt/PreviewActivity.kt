@@ -1,4 +1,4 @@
-package com.example.videotranscoder
+package com.thingsapart.videopt
 
 import android.app.Activity
 import android.content.Intent
@@ -10,7 +10,6 @@ import android.widget.MediaController
 import android.widget.Toast
 import android.widget.VideoView
 import androidx.core.content.FileProvider
-import com.example.videotranscoder.R
 import java.io.File
 
 class PreviewActivity : Activity() {

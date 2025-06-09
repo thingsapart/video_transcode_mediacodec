@@ -1,8 +1,7 @@
-package com.example.videotranscoder
+package com.thingsapart.videopt
 
 import android.content.Context
 import android.media.MediaCodec
-import android.media.MediaCodecInfo
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMuxer
@@ -11,7 +10,6 @@ import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
-import java.nio.ByteBuffer
 
 class VideoTranscoder(private val context: Context) {
 
@@ -287,13 +285,18 @@ class VideoTranscoder(private val context: Context) {
             throw e
         } finally {
             Log.d(TAG, "Releasing all resources...")
-            try { videoDecoder?.stop(); videoDecoder?.release(); Log.d(TAG, "Video Decoder released.") } catch (e: Exception) { Log.e(TAG, "Err release videoDec", e) }
-            try { videoEncoder?.stop(); videoEncoder?.release(); Log.d(TAG, "Video Encoder released.") } catch (e: Exception) { Log.e(TAG, "Err release videoEnc", e) }
+            try { videoDecoder?.stop(); videoDecoder?.release(); Log.d(TAG, "Video Decoder released.") } catch (e: Exception) { Log.e(
+                TAG, "Err release videoDec", e) }
+            try { videoEncoder?.stop(); videoEncoder?.release(); Log.d(TAG, "Video Encoder released.") } catch (e: Exception) { Log.e(
+                TAG, "Err release videoEnc", e) }
             if (inputAudioTrackIndex != -1) { // Only release audio codecs if they were initialized
-                try { audioDecoder?.stop(); audioDecoder?.release(); Log.d(TAG, "Audio Decoder released.") } catch (e: Exception) { Log.e(TAG, "Err release audioDec", e) }
-                try { audioEncoder?.stop(); audioEncoder?.release(); Log.d(TAG, "Audio Encoder released.") } catch (e: Exception) { Log.e(TAG, "Err release audioEnc", e) }
+                try { audioDecoder?.stop(); audioDecoder?.release(); Log.d(TAG, "Audio Decoder released.") } catch (e: Exception) { Log.e(
+                    TAG, "Err release audioDec", e) }
+                try { audioEncoder?.stop(); audioEncoder?.release(); Log.d(TAG, "Audio Encoder released.") } catch (e: Exception) { Log.e(
+                    TAG, "Err release audioEnc", e) }
             }
-            try { extractor?.release(); Log.d(TAG, "Extractor released.") } catch (e: Exception) { Log.e(TAG, "Err release extractor", e) }
+            try { extractor?.release(); Log.d(TAG, "Extractor released.") } catch (e: Exception) { Log.e(
+                TAG, "Err release extractor", e) }
             try {
                 if (muxerStarted) muxer?.stop() // Only stop if started
                 muxer?.release()

@@ -1,4 +1,4 @@
-package com.example.videotranscoder
+package com.thingsapart.videopt
 
 import android.app.Activity
 import android.content.BroadcastReceiver
@@ -12,7 +12,6 @@ import android.util.Log
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
-import com.example.videotranscoder.R
 
 class MainActivity : Activity() {
     private lateinit var tvStatus: TextView

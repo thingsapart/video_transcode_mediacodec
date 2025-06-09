@@ -1,10 +1,8 @@
-package com.example.videotranscoder
+package com.thingsapart.videopt
 
 import android.app.Activity
 import android.media.MediaCodecInfo
 import android.media.MediaCodecList
-import android.media.MediaFormat
-import android.os.Build
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -16,7 +14,6 @@ import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.Spinner
 import android.widget.TextView
-import com.example.videotranscoder.R
 import java.util.Locale
 
 class SettingsActivity : Activity() {
@@ -32,7 +29,9 @@ class SettingsActivity : Activity() {
 
     private var availableCodecs: List<MediaCodecInfo> = listOf()
     private var supportedMimeTypes: MutableList<String> = mutableListOf()
-    private var supportedResolutions: MutableList<String> = mutableListOf("Original", SettingsManager.DEFAULT_RESOLUTION)
+    private var supportedResolutions: MutableList<String> = mutableListOf("Original",
+        SettingsManager.DEFAULT_RESOLUTION
+    )
     private var supportedQualities: Array<String> = arrayOf("High", "Medium", "Low")
     private var supportedFrameRates: Range<Int>? = null // Store as Range<Int>
     private var supportedVideoBitrates: Range<Int>? = null // Store as Range<Int> bps
