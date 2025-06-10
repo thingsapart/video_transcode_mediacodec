@@ -29,8 +29,9 @@ import java.util.Locale
 
 class TranscodingService : Service() {
 
-    private val serviceJob = Job()
+    private val serviceJob = Job() // Parent job for the service scope
     private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
+    private var currentTranscodingJob: Job? = null // To keep track of the active transcoding task
 
     private lateinit var notificationManager: NotificationManager
     private lateinit var settingsManager: SettingsManager
@@ -51,6 +52,7 @@ class TranscodingService : Service() {
         const val EXTRA_ERROR_MESSAGE = "extra_error_message"
         const val EXTRA_PROGRESS = "extra_progress"
         const val EXTRA_OUTPUT_VIDEO_SIZE = "com.thingsapart.videopt.extra.OUTPUT_VIDEO_SIZE"
+        const val EXTRA_TEMPORARY_SETTINGS = "com.thingsapart.videopt.extra.TEMPORARY_SETTINGS"
 
 
         fun startTranscoding(context: Context, inputVideoUri: Uri) {
@@ -95,14 +97,47 @@ class TranscodingService : Service() {
             Log.d(TAG, "Starting transcoding for: $inputVideoUri to $outputVideoPath")
             updateNotification("Preparing to transcode...")
 
-            serviceScope.launch {
+            val temporarySettingsBundle = intent.getBundleExtra(EXTRA_TEMPORARY_SETTINGS)
+
+            // Cancel any previous transcoding job before starting a new one
+            currentTranscodingJob?.let {
+                if (it.isActive) {
+                    Log.d(TAG, "Cancelling previous transcoding job.")
+                    it.cancel() // This will trigger onTranscodeCanceled if the listener is set up for cancellation
+                }
+            }
+
+            currentTranscodingJob = serviceScope.launch {
                 try {
-                    val targetResolutionSetting = settingsManager.loadResolution()
-                    val targetQuality = settingsManager.loadQuality()
-                    val targetFrameRate = settingsManager.loadFrameRate()
-                    val targetAudioBitrateBps = settingsManager.loadAudioBitrate() // This is already in BPS
+                    // Ensure the job is active before proceeding, especially after potential cancellation
+                    if (!serviceJob.isActive) {
+                        Log.d(TAG, "Transcoding job cancelled before starting work.")
+                        return@launch
+                    }
+                    val targetResolutionSetting: String
+                    val targetQuality: String
+                    val targetFrameRate: Int
+                    val targetAudioBitrateBps: Int
+
+                    if (temporarySettingsBundle != null) {
+                        Log.d(TAG, "Using temporary settings for transcoding.")
+                        targetResolutionSetting = temporarySettingsBundle.getString(SettingsManager.PREF_RESOLUTION, settingsManager.loadResolution())
+                        targetQuality = temporarySettingsBundle.getString(SettingsManager.PREF_QUALITY, settingsManager.loadQuality())
+                        targetFrameRate = temporarySettingsBundle.getInt(SettingsManager.PREF_FRAME_RATE, settingsManager.loadFrameRate())
+                        targetAudioBitrateBps = temporarySettingsBundle.getInt(SettingsManager.PREF_AUDIO_BITRATE, settingsManager.loadAudioBitrate())
+                    } else {
+                        Log.d(TAG, "Using default saved settings for transcoding.")
+                        targetResolutionSetting = settingsManager.loadResolution()
+                        targetQuality = settingsManager.loadQuality()
+                        targetFrameRate = settingsManager.loadFrameRate()
+                        targetAudioBitrateBps = settingsManager.loadAudioBitrate()
+                    }
 
                     val videoStrategyBuilder = DefaultVideoStrategy.Builder()
+                    // Important: parseResolutionValue is a method of SettingsManager,
+                    // so it needs to be called on an instance of SettingsManager,
+                    // or the logic needs to be duplicated/accessible here if SettingsManager instance isn't available.
+                    // SettingsManager is available as `settingsManager` (class member).
                     val dimensions = settingsManager.parseResolutionValue(targetResolutionSetting)
 
                     if (targetResolutionSetting.equals("Original", ignoreCase = true) || dimensions == null) {
@@ -174,19 +209,26 @@ class TranscodingService : Service() {
                             }
                         }
                         override fun onTranscodeCanceled() {
-                            if (serviceJob.isActive) {
-                                Log.w(TAG, "Transcoding Canceled")
-                                updateNotification("Transcoding canceled.")
-                                sendBroadcastResult(ACTION_TRANSCODING_ERROR, errorMessage = "Transcoding canceled.")
-                                stopSelf()
-                            }
+                            // Check currentTranscodingJob specifically, as serviceJob is for the whole service
+                            currentTranscodingJob?.let { job ->
+                                if (job.isCancelled) { // Check if this specific job was cancelled
+                                    Log.w(TAG, "Transcoding Canceled (job was cancelled)")
+                                    updateNotification("Transcoding canceled.")
+                                    // Don't send error broadcast if it was an intentional cancellation for a new task
+                                    // sendBroadcastResult(ACTION_TRANSCODING_ERROR, errorMessage = "Transcoding canceled by new request.")
+                                    // stopSelf() // Don't stopSelf if a new task is about to start
+                                }
+                            } ?: Log.w(TAG, "Transcoding Canceled (job is null)")
                         }
                         override fun onTranscodeFailed(exception: Throwable) {
-                            if (serviceJob.isActive) {
+                            // Only process if this job wasn't cancelled externally
+                            if (serviceJob.isActive) { // isActive is from CoroutineScope
                                 Log.e(TAG, "Transcoding Failed", exception)
                                 updateNotification("Transcoding error.")
                                 sendBroadcastResult(ACTION_TRANSCODING_ERROR, errorMessage = exception.localizedMessage ?: "Transcoding error.")
-                                stopSelf()
+                                stopSelf() // Stop service on failure
+                            } else {
+                                Log.i(TAG, "Transcoding failed but job was already cancelled/inactive: ${exception.message}")
                             }
                         }
                     }
@@ -199,10 +241,12 @@ class TranscodingService : Service() {
                         .setListener(listener)
                         .transcode()
                 } catch (e: Exception) {
-                    if (serviceJob.isActive) {
+                    if (serviceJob.isActive) { // isActive is from CoroutineScope
                         Log.e(TAG, "Error setting up transcoding", e)
                         sendBroadcastResult(ACTION_TRANSCODING_ERROR, errorMessage = "Setup error: ${e.localizedMessage}")
-                        stopSelf()
+                        stopSelf() // Stop service on setup error
+                    } else {
+                        Log.i(TAG, "Exception during setup but job was already cancelled/inactive: ${e.message}")
                     }
                 }
             }

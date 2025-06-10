@@ -31,6 +31,7 @@ class PreviewActivity : Activity() {
     private lateinit var progressBarTranscoding: LinearProgressIndicator
     private lateinit var textViewStatus: TextView
     private lateinit var btnShare: MaterialButton
+    private lateinit var fabSettings: com.google.android.material.floatingactionbutton.FloatingActionButton
 
     private var outputVideoUri: Uri? = null
     private var outputVideoMimeType: String = "video/mp4" // Default
@@ -42,6 +43,7 @@ class PreviewActivity : Activity() {
         private const val TAG = "PreviewActivity"
         // Consistent with TranscodingService
         const val EXTRA_INPUT_VIDEO_URI = "extra_input_video_uri" // Ensure this matches MainActivity's key
+        private const val REQUEST_CODE_TEMPORARY_SETTINGS = 1001
     }
 
     private val transcodingReceiver = object : BroadcastReceiver() {
@@ -114,6 +116,7 @@ class PreviewActivity : Activity() {
         progressBarTranscoding = findViewById(R.id.progressbar_transcoding)
         textViewStatus = findViewById(R.id.textview_status)
         btnShare = findViewById(R.id.btn_share_transcoded)
+        fabSettings = findViewById(R.id.fab_settings)
 
         val mediaController = MediaController(this)
         mediaController.setAnchorView(videoView)
@@ -180,6 +183,62 @@ class PreviewActivity : Activity() {
                 // This case should ideally not be reached if button is only enabled when outputVideoUri is set
                 Toast.makeText(this, "No video available to share yet.", Toast.LENGTH_SHORT).show()
                 Log.w(TAG, "Share button clicked but outputVideoUri is null.")
+            }
+        }
+
+        fabSettings.setOnClickListener {
+            val intent = Intent(this, SettingsActivity::class.java)
+            intent.putExtra(SettingsActivity.EXTRA_IS_TEMPORARY_SETTINGS, true)
+            startActivityForResult(intent, REQUEST_CODE_TEMPORARY_SETTINGS)
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_CODE_TEMPORARY_SETTINGS) {
+            if (resultCode == Activity.RESULT_OK) {
+                // Apply the temporary settings if needed.
+                // For now, just log that we received them.
+                Log.d(TAG, "Received temporary settings from SettingsActivity.")
+                val temporarySettingsBundle = data?.extras
+                if (temporarySettingsBundle != null && inputVideoUri != null) {
+                    Log.d(TAG, "Applying temporary settings for transcoding.")
+
+                    // Reset UI to initial transcoding state
+                    textViewStatus.text = getString(R.string.applying_temporary_settings)
+                    progressBarTranscoding.progress = 0
+                    progressBarTranscoding.visibility = View.VISIBLE
+                    btnShare.visibility = View.INVISIBLE
+                    btnShare.isEnabled = false
+                    videoView.visibility = View.GONE
+                    imageViewThumbnail.visibility = View.VISIBLE // Show placeholder/last thumbnail
+                    viewFade.visibility = View.VISIBLE
+
+                    // Stop any ongoing service explicitly if possible, though starting a new one
+                    // with the same foreground ID might just replace it or cause issues if not handled well by the service.
+                    // For now, we assume the service handles a new START_TRANSCODING action correctly (e.g. cancels previous)
+                    // or that a new startForeground call effectively replaces the old one.
+                    // A more robust solution might involve an explicit stop action to the service.
+
+                    val serviceIntent = Intent(this, TranscodingService::class.java).apply {
+                        action = TranscodingService.ACTION_START_TRANSCODING
+                        putExtra(TranscodingService.EXTRA_INPUT_VIDEO_URI, inputVideoUri.toString())
+                        putExtra(TranscodingService.EXTRA_TEMPORARY_SETTINGS, temporarySettingsBundle)
+                    }
+
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        startForegroundService(serviceIntent)
+                    } else {
+                        startService(serviceIntent)
+                    }
+                    Toast.makeText(this, getString(R.string.applying_temporary_settings), Toast.LENGTH_LONG).show()
+
+                } else {
+                    Log.w(TAG, "Temporary settings bundle or inputVideoUri is null. Cannot apply settings.")
+                    Toast.makeText(this, "Could not apply temporary settings.", Toast.LENGTH_SHORT).show()
+                }
+            } else if (resultCode == Activity.RESULT_CANCELED) {
+                Log.d(TAG, "Temporary settings cancelled or no changes made in SettingsActivity.")
             }
         }
     }

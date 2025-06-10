@@ -24,4 +24,9 @@
     <string name="resolution_original_display_name">Original</string>
     <string name="frame_rate_original_display_name">Original</string>
     <string name="frame_rate_display_format">%1$s FPS</string>
+
+    <!-- New strings for temporary settings -->
+    <string name="save_settings_as_defaults">Save settings as new defaults</string>
+    <string name="title_temporary_settings">Temporary Settings</string>
+    <string name="applying_temporary_settings">Applying temporary settings and restarting transcode...</string>
 </resources>
