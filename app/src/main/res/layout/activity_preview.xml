@@ -90,7 +90,7 @@
         android:layout_alignParentTop="true"
         android:layout_alignParentEnd="true"
         android:layout_marginTop="72dp"      android:layout_marginEnd="16dp"
-        android:src="@android:drawable/ic_menu_manage"
+        android:src="@android:drawable/ic_settings"
         app:tint="@android:color/white"
         android:contentDescription="Settings"
         app:fabSize="mini" />
