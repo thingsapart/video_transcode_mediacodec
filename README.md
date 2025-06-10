@@ -17,7 +17,7 @@ I love and use FFShare, but ffmpeg-based transoding makes it a litte slow.
 ![Transcode Done Screenshot](https://github.com/thingsapart/video_transcode_mediacodec/blob/main/docs/transcoded.jpeg?raw=true)
 
 ## How To
-Run VideOpt and set your transcoding settings. Then whenever you need to, share a Video to VideOpt and it will automatically transcode with the predefined settings and allow to Reshare to another app. You can save the file by sharing with "File Manager".
+Run VideOpt and set your transcoding settings. Then whenever you need to, share a Video to VideOpt and it will automatically transcode with the predefined settings and allow to Reshare to another app. You can also save the video file to Downloads by sharing the video with "File Manager".
 
 ## Numbers, For Example
 
