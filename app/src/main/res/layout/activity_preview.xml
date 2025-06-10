@@ -29,14 +29,6 @@
             android:contentDescription="@string/video_thumbnail_content_description"
             tools:srcCompat="@tools:sample/backgrounds/scenic" />
 
-        <View
-            android:id="@+id/view_fade"
-            android:layout_width="match_parent"
-            android:layout_height="100dp"
-            android:layout_gravity="bottom"
-            android:background="@drawable/gradient_fade"
-            android:visibility="visible" />
-
         <VideoView
             android:id="@+id/video_view_preview"
             android:layout_width="match_parent"

@@ -179,15 +179,16 @@ class PreviewActivity : Activity() {
 
                 videoView.setVideoURI(outputVideoUri)
                 val playbackPosition = savedInstanceState.getInt(STATE_VIDEO_PLAYBACK_POSITION, 0)
-                if (playbackPosition > 0) {
-                    videoView.seekTo(playbackPosition)
-                    videoView.start() // Or just prepare, depending on desired behavior
-                }
-                 // Ensure media controller is set up again as view might have been recreated
-                val restoredMediaController = MediaController(this)
-                restoredMediaController.setAnchorView(videoView)
-                videoView.setMediaController(restoredMediaController)
-                videoView.requestFocus()
+                videoView.seekTo(playbackPosition) // Seek first
+
+                // Ensure MediaController is set up BEFORE start() if it's needed immediately
+                val mediaController = MediaController(this) // Use the already defined one or re-init if needed
+                mediaController.setAnchorView(videoView)
+                videoView.setMediaController(mediaController)
+
+                videoView.start() // Then start playback to refresh the view and continue playing
+
+                videoView.requestFocus() // Request focus for MediaController interaction
 
             } else {
                 // If not complete, restore thumbnail/fade visibility as saved
