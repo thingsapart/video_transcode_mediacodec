@@ -496,29 +496,31 @@ class PreviewActivity : Activity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        Log.d(TAG, "onDestroy called")
-        // Check if outputVideoUri exists and if the file should be cleaned up
-        // This cleanup is a fallback, e.g. if user exits without sharing.
-        // Be cautious if the file could still be needed (e.g., by an ongoing service if activity is finishing).
-        // For this issue, assume if activity is destroyed, the temp file is no longer needed by THIS activity instance.
-        outputVideoUri?.path?.let { path ->
-            try {
-                val fileToDelete = File(path)
-                if (fileToDelete.exists()) {
-                    // Check if the file is in our app's cache directory to be safer
-                    if (fileToDelete.absolutePath.startsWith(cacheDir.absolutePath)) {
-                        if (fileToDelete.delete()) {
-                            Log.i(TAG, "Cleaned up transcoded file in onDestroy: ${fileToDelete.absolutePath}")
+        Log.d(TAG, "onDestroy called. isChangingConfigurations: ${isChangingConfigurations()}")
+
+        // Only delete the file if the activity is actually finishing, not just due to a configuration change.
+        if (!isChangingConfigurations()) {
+            outputVideoUri?.path?.let { path ->
+                try {
+                    val fileToDelete = File(path)
+                    if (fileToDelete.exists()) {
+                        // Check if the file is in our app's cache directory to be safer
+                        if (fileToDelete.absolutePath.startsWith(cacheDir.absolutePath)) {
+                            if (fileToDelete.delete()) {
+                                Log.i(TAG, "Cleaned up transcoded file in onDestroy (activity finishing): ${fileToDelete.absolutePath}")
+                            } else {
+                                Log.w(TAG, "Failed to clean up transcoded file in onDestroy (activity finishing): ${fileToDelete.absolutePath}")
+                            }
                         } else {
-                            Log.w(TAG, "Failed to clean up transcoded file in onDestroy: ${fileToDelete.absolutePath}")
+                            Log.w(TAG, "Skipping deletion in onDestroy (activity finishing), file not in cache: ${fileToDelete.absolutePath}")
                         }
-                    } else {
-                        Log.w(TAG, "Skipping deletion in onDestroy, file not in cache: ${fileToDelete.absolutePath}")
                     }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error during onDestroy cleanup (activity finishing) of transcoded file", e)
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error during onDestroy cleanup of transcoded file", e)
             }
+        } else {
+            Log.d(TAG, "Skipping onDestroy cleanup as it's due to configuration change.")
         }
     }
 
