@@ -65,7 +65,7 @@ class SettingsActivity : Activity() {
 
     // Other UI
     private lateinit var textViewEstimatedSize: TextView
-    private var saveAsDefaultsSwitch: com.google.android.material.switchmaterial.SwitchMaterial? = null
+    private lateinit var saveAsDefaultsSwitch: com.google.android.material.switchmaterial.SwitchMaterial // Changed to non-nullable
 
     // Initial settings for temporary mode change detection
     private var initialResolution: String? = null
@@ -132,8 +132,15 @@ class SettingsActivity : Activity() {
 
         Log.d(TAG, "onCreate: Spinners.")
 
+        // Get reference to the switch from XML
+        saveAsDefaultsSwitch = findViewById(R.id.switch_save_as_defaults)
+
         if (isTemporarySettingsMode) {
-            addSaveAsDefaultsSwitch()
+            // Make the XML switch visible and ensure it's off by default initially
+            saveAsDefaultsSwitch.visibility = View.VISIBLE
+            saveAsDefaultsSwitch.isChecked = false
+        } else {
+            saveAsDefaultsSwitch.visibility = View.GONE
         }
 
         setupSpinners()
@@ -148,53 +155,7 @@ class SettingsActivity : Activity() {
         Log.d(TAG, "onCreate: UI initialized and listeners set up with corrected order.")
     }
 
-    private fun addSaveAsDefaultsSwitch() {
-        saveAsDefaultsSwitch = com.google.android.material.switchmaterial.SwitchMaterial(this).apply {
-            text = getString(R.string.save_settings_as_defaults) // Use string resource
-            isChecked = false
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                // Add some margin before the estimated size card
-                bottomMargin = 16 * resources.displayMetrics.density.toInt()
-            }
-        }
-
-        // Assuming the root layout is a LinearLayout with a ScrollView as its child,
-        // and the ScrollView's child is the main LinearLayout container.
-        val mainContainer = findViewById<LinearLayout>(android.R.id.content).getChildAt(0).let {
-            if (it is ScrollView) {
-                it.getChildAt(0) as? LinearLayout
-            } else {
-                // Fallback if the structure is different, though this might need adjustment
-                it as? LinearLayout
-            }
-        }
-
-        mainContainer?.let {
-            // Try to insert it before the last card (Estimated Size)
-            val childCount = it.childCount
-            if (childCount > 0) {
-                // Find the last MaterialCardView (estimated size card)
-                var estimatedSizeCardIndex = -1
-                for (i in childCount - 1 downTo 0) {
-                    if (it.getChildAt(i) is com.google.android.material.card.MaterialCardView) {
-                        estimatedSizeCardIndex = i
-                        break
-                    }
-                }
-                if (estimatedSizeCardIndex != -1) {
-                    it.addView(saveAsDefaultsSwitch, estimatedSizeCardIndex)
-                } else {
-                    // If no card found, just add it at the end of the container
-                    it.addView(saveAsDefaultsSwitch)
-                }
-            } else {
-                it.addView(saveAsDefaultsSwitch)
-            }
-        } ?: Log.e(TAG, "Could not find a suitable LinearLayout container to add the switch.")
-    }
+    // Removed addSaveAsDefaultsSwitch() method as it's now in XML
 
     private fun getFormatDisplayName(mimeType: String): String {
         return when (mimeType.lowercase(Locale.US)) {
@@ -657,7 +618,7 @@ class SettingsActivity : Activity() {
                 resultIntent.putExtras(currentSettingsBundle)
                 setResult(Activity.RESULT_OK, resultIntent)
 
-                if (saveAsDefaultsSwitch?.isChecked == true) {
+                if (saveAsDefaultsSwitch.isChecked == true) { // Now non-nullable
                     settingsManager.saveResolution(currentSettingsBundle.getString(SettingsManager.PREF_RESOLUTION) ?: initialResolution!!)
                     settingsManager.saveFormat(currentSettingsBundle.getString(SettingsManager.PREF_FORMAT) ?: initialFormatMime!!)
                     settingsManager.saveQuality(currentSettingsBundle.getString(SettingsManager.PREF_QUALITY) ?: initialQuality!!)
