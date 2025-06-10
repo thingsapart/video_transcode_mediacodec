@@ -238,5 +238,15 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_apply_and_rerun"
+        style="@style/Widget.Material3.Button.ElevatedButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:layout_marginBottom="16dp"
+        android:text="Apply &amp; Rerun Video"
+        android:visibility="gone"
+        tools:visibility="visible" />
     </LinearLayout>
 </ScrollView>
