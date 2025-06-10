@@ -90,7 +90,7 @@ class PreviewActivity : Activity() {
                         videoView.setVideoURI(outputVideoUri)
                         videoView.visibility = View.VISIBLE
                         imageViewThumbnail.visibility = View.GONE
-                        viewFade.visibility = View.GONE
+                        //viewFade.visibility = View.GONE
 
                         if (videoSizeBytes > 0) {
                             btnShare.text = "Share (${formatFileSize(videoSizeBytes)})"
@@ -119,7 +119,7 @@ class PreviewActivity : Activity() {
                     textViewStatus.text = "Error: $errorMessage"
                     progressBarTranscoding.visibility = View.GONE
                     imageViewThumbnail.visibility = View.VISIBLE
-                    viewFade.visibility = View.VISIBLE
+                    //viewFade.visibility = View.VISIBLE
                     videoView.visibility = View.GONE
                     btnShare.visibility = View.GONE // Or INVISIBLE
                 }
@@ -133,7 +133,7 @@ class PreviewActivity : Activity() {
         Log.d(TAG, "onCreate called")
 
         imageViewThumbnail = findViewById(R.id.imageview_thumbnail)
-        viewFade = findViewById(R.id.view_fade)
+        //viewFade = findViewById(R.id.view_fade)
         videoView = findViewById(R.id.video_view_preview)
         progressBarTranscoding = findViewById(R.id.progressbar_transcoding)
         textViewStatus = findViewById(R.id.textview_status)
@@ -174,7 +174,7 @@ class PreviewActivity : Activity() {
             // Important: Only set video URI if it's valid and status is complete
             if (currentTranscodingStatus == STATUS_COMPLETE && outputVideoUri != null) {
                 imageViewThumbnail.visibility = savedInstanceState.getInt(STATE_THUMBNAIL_VISIBILITY, View.GONE)
-                viewFade.visibility = savedInstanceState.getInt(STATE_FADE_VIEW_VISIBILITY, View.GONE)
+                //viewFade.visibility = savedInstanceState.getInt(STATE_FADE_VIEW_VISIBILITY, View.GONE)
                 videoView.visibility = savedInstanceState.getInt(STATE_VIDEO_VIEW_VISIBILITY, View.VISIBLE)
 
                 videoView.setVideoURI(outputVideoUri)
@@ -193,7 +193,7 @@ class PreviewActivity : Activity() {
             } else {
                 // If not complete, restore thumbnail/fade visibility as saved
                 imageViewThumbnail.visibility = savedInstanceState.getInt(STATE_THUMBNAIL_VISIBILITY, View.VISIBLE)
-                viewFade.visibility = savedInstanceState.getInt(STATE_FADE_VIEW_VISIBILITY, View.VISIBLE)
+                //viewFade.visibility = savedInstanceState.getInt(STATE_FADE_VIEW_VISIBILITY, View.VISIBLE)
                 videoView.visibility = savedInstanceState.getInt(STATE_VIDEO_VIEW_VISIBILITY, View.GONE)
             }
 
@@ -229,7 +229,7 @@ class PreviewActivity : Activity() {
             btnShare.visibility = View.INVISIBLE
             btnShare.isEnabled = false
             imageViewThumbnail.visibility = View.VISIBLE
-            viewFade.visibility = View.VISIBLE
+            //viewFade.visibility = View.VISIBLE
             videoView.visibility = View.GONE
 
             val inputVideoUriString = intent.getStringExtra(EXTRA_INPUT_VIDEO_URI)
@@ -296,7 +296,7 @@ class PreviewActivity : Activity() {
         outState.putInt(STATE_PROGRESS_BAR_VISIBILITY, progressBarTranscoding.visibility)
         outState.putInt(STATE_VIDEO_VIEW_VISIBILITY, videoView.visibility)
         outState.putInt(STATE_THUMBNAIL_VISIBILITY, imageViewThumbnail.visibility)
-        outState.putInt(STATE_FADE_VIEW_VISIBILITY, viewFade.visibility)
+        //outState.putInt(STATE_FADE_VIEW_VISIBILITY, viewFade.visibility)
         if (videoView.visibility == View.VISIBLE) {
             outState.putInt(STATE_VIDEO_PLAYBACK_POSITION, videoView.currentPosition)
         }
@@ -322,7 +322,7 @@ class PreviewActivity : Activity() {
                     btnShare.isEnabled = false
                     videoView.visibility = View.GONE
                     imageViewThumbnail.visibility = View.VISIBLE // Show placeholder/last thumbnail
-                    viewFade.visibility = View.VISIBLE
+                    //viewFade.visibility = View.VISIBLE
 
                     // Stop any ongoing service explicitly if possible, though starting a new one
                     // with the same foreground ID might just replace it or cause issues if not handled well by the service.

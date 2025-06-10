@@ -12,6 +12,7 @@ import android.util.Log
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
+import java.io.File
 
 class MainActivity : Activity() {
     private lateinit var tvStatus: TextView
