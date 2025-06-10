@@ -110,7 +110,7 @@ class TranscodingService : Service() {
             currentTranscodingJob = serviceScope.launch {
                 try {
                     // Ensure the job is active before proceeding, especially after potential cancellation
-                    if (!isActive) {
+                    if (!serviceJob.isActive) {
                         Log.d(TAG, "Transcoding job cancelled before starting work.")
                         return@launch
                     }
@@ -222,7 +222,7 @@ class TranscodingService : Service() {
                         }
                         override fun onTranscodeFailed(exception: Throwable) {
                             // Only process if this job wasn't cancelled externally
-                            if (isActive) { // isActive is from CoroutineScope
+                            if (serviceJob.isActive) { // isActive is from CoroutineScope
                                 Log.e(TAG, "Transcoding Failed", exception)
                                 updateNotification("Transcoding error.")
                                 sendBroadcastResult(ACTION_TRANSCODING_ERROR, errorMessage = exception.localizedMessage ?: "Transcoding error.")
@@ -241,7 +241,7 @@ class TranscodingService : Service() {
                         .setListener(listener)
                         .transcode()
                 } catch (e: Exception) {
-                    if (isActive) { // isActive is from CoroutineScope
+                    if (serviceJob.isActive) { // isActive is from CoroutineScope
                         Log.e(TAG, "Error setting up transcoding", e)
                         sendBroadcastResult(ACTION_TRANSCODING_ERROR, errorMessage = "Setup error: ${e.localizedMessage}")
                         stopSelf() // Stop service on setup error

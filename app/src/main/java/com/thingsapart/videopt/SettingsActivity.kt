@@ -11,6 +11,8 @@ import android.text.TextWatcher
 import android.util.Log
 import android.util.Range
 import android.view.ViewGroup
+import android.content.Intent
+import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.ImageButton
