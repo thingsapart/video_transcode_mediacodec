@@ -218,8 +218,6 @@ class SettingsActivity : Activity() {
             }
         })
 
-        //resolutionAdapter?.clear()
-        //resolutionAdapter?.addAll(currentResolutionDisplayNames)
         resolutionAdapter?.notifyDataSetChanged()
 
         if (currentResolutionDisplayNames.contains(previouslySelectedResolution)) spinnerResolution.setText(previouslySelectedResolution, false)
@@ -240,8 +238,6 @@ class SettingsActivity : Activity() {
         this.currentFrameRateDisplayNames.addAll(customFrameRatesInOldList.distinct())
         sortFrameRateDisplayNames()
 
-        //frameRateAdapter?.clear()
-        //frameRateAdapter?.addAll(this.currentFrameRateDisplayNames)
         frameRateAdapter?.notifyDataSetChanged()
 
         if (this.currentFrameRateDisplayNames.contains(previouslySelectedFrameRate)) {
@@ -272,8 +268,7 @@ class SettingsActivity : Activity() {
             })
         currentResolutionDisplayNames.addAll(standardDisplayNames)
         Log.d(TAG, "setupSpinners: $standardDisplayNames.")
-        //resolutionAdapter?.clear()
-        //resolutionAdapter?.addAll(currentResolutionDisplayNames.distinct())
+
         resolutionAdapter?.notifyDataSetChanged()
 
         currentQualityDisplayNames.clear()
@@ -287,14 +282,12 @@ class SettingsActivity : Activity() {
         currentFrameRateDisplayNames.add(getString(R.string.frame_rate_display_format, "24"))
         currentFrameRateDisplayNames.add(getString(R.string.frame_rate_display_format, "30"))
         sortFrameRateDisplayNames()
-        //frameRateAdapter?.clear()
-        //frameRateAdapter?.addAll(currentFrameRateDisplayNames)
+
         frameRateAdapter?.notifyDataSetChanged()
 
         currentAudioBitrateDisplayNames.clear()
         currentAudioBitrateDisplayNames.addAll(commonAudioBitrates.keys.toList())
-        //audioBitrateAdapter?.clear()
-        //audioBitrateAdapter?.addAll(currentAudioBitrateDisplayNames)
+
         audioBitrateAdapter?.notifyDataSetChanged()
 
         Log.d(TAG, "setupSpinners: DONE.")
@@ -328,8 +321,6 @@ class SettingsActivity : Activity() {
                     else -> settingsManager.parseResolutionValue(it)?.let { dim -> dim.first.toLong() * dim.second.toLong() } ?: (Long.MAX_VALUE -1)
                 }
             })
-            //resolutionAdapter?.clear()
-            //resolutionAdapter?.addAll(currentResolutionDisplayNames)
             resolutionAdapter?.notifyDataSetChanged()
         }
         if (currentResolutionDisplayNames.contains(loadedResolutionDisplayName)) {
@@ -347,8 +338,6 @@ class SettingsActivity : Activity() {
         if (!currentFrameRateDisplayNames.contains(loadedFrameRateDisplay)) {
             currentFrameRateDisplayNames.add(loadedFrameRateDisplay)
             sortFrameRateDisplayNames()
-            //frameRateAdapter?.clear()
-            //frameRateAdapter?.addAll(currentFrameRateDisplayNames)
             frameRateAdapter?.notifyDataSetChanged()
         }
         spinnerFrameRate.setText(loadedFrameRateDisplay, false)
@@ -418,9 +407,6 @@ class SettingsActivity : Activity() {
                                 else -> settingsManager.parseResolutionValue(it)?.let { dim -> dim.first.toLong() * dim.second.toLong() } ?: (Long.MAX_VALUE -1)
                             }
                         })
-
-                        //resolutionAdapter?.clear()
-                        //resolutionAdapter?.addAll(currentResolutionDisplayNames)
                         resolutionAdapter?.notifyDataSetChanged()
                     }
                     spinnerResolution.setText(customResDisplayName, false)
@@ -445,7 +431,6 @@ class SettingsActivity : Activity() {
                     if(!currentFrameRateDisplayNames.contains(fpsDisplayString)){
                         currentFrameRateDisplayNames.add(fpsDisplayString)
                         sortFrameRateDisplayNames()
-                        //frameRateAdapter?.clear(); frameRateAdapter?.addAll(currentFrameRateDisplayNames);
                         frameRateAdapter?.notifyDataSetChanged()
                     }
                     spinnerFrameRate.setText(fpsDisplayString, false)
