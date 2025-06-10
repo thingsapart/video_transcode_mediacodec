@@ -65,6 +65,14 @@ class SettingsActivity : Activity() {
 
     // Other UI
     private lateinit var textViewEstimatedSize: TextView
+    private var saveAsDefaultsSwitch: com.google.android.material.switchmaterial.SwitchMaterial? = null
+
+    // Initial settings for temporary mode change detection
+    private var initialResolution: String? = null
+    private var initialFormatMime: String? = null
+    private var initialQuality: String? = null
+    private var initialFrameRate: Int? = null
+    private var initialAudioBitrate: Int? =null
 
     // Codec Info
     private var availableCodecs: List<MediaCodecInfo> = listOf()
@@ -72,17 +80,28 @@ class SettingsActivity : Activity() {
     private var supportedVideoBitrates: Range<Int>? = null
     private var supportedAudioBitratesFromCodec: Range<Int>? = null
 
+    private var isTemporarySettingsMode: Boolean = false
+
     companion object {
         private const val TAG = "SettingsActivity"
         private const val BASE_BITRATE_MEDIUM_720P_AVC = 2_500_000
         private const val BASE_BITRATE_MEDIUM_720P_HEVC = 1_800_000
         private const val BASE_BITRATE_MEDIUM_720P_VP9 = 2_000_000
+        const val EXTRA_IS_TEMPORARY_SETTINGS = "is_temporary_settings"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
         Log.d(TAG, "onCreate: Inflating layout")
+
+        isTemporarySettingsMode = intent.getBooleanExtra(EXTRA_IS_TEMPORARY_SETTINGS, false)
+
+        if (isTemporarySettingsMode) {
+            actionBar?.setDisplayHomeAsUpEnabled(true)
+            actionBar?.setDisplayShowHomeEnabled(true)
+            title = getString(R.string.title_temporary_settings) // Set title for temporary mode
+        }
 
         settingsManager = SettingsManager(applicationContext)
 
@@ -113,12 +132,68 @@ class SettingsActivity : Activity() {
 
         Log.d(TAG, "onCreate: Spinners.")
 
+        if (isTemporarySettingsMode) {
+            addSaveAsDefaultsSwitch()
+        }
+
         setupSpinners()
         queryCodecCapabilities()
         loadSettings()
+        // Store initial settings if in temporary mode
+        if (isTemporarySettingsMode) {
+            storeInitialSettings()
+        }
         setupListeners()
 
         Log.d(TAG, "onCreate: UI initialized and listeners set up with corrected order.")
+    }
+
+    private fun addSaveAsDefaultsSwitch() {
+        saveAsDefaultsSwitch = com.google.android.material.switchmaterial.SwitchMaterial(this).apply {
+            text = getString(R.string.save_settings_as_defaults) // Use string resource
+            isChecked = false
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                // Add some margin before the estimated size card
+                bottomMargin = 16 * resources.displayMetrics.density.toInt()
+            }
+        }
+
+        // Assuming the root layout is a LinearLayout with a ScrollView as its child,
+        // and the ScrollView's child is the main LinearLayout container.
+        val mainContainer = findViewById<LinearLayout>(android.R.id.content).getChildAt(0).let {
+            if (it is ScrollView) {
+                it.getChildAt(0) as? LinearLayout
+            } else {
+                // Fallback if the structure is different, though this might need adjustment
+                it as? LinearLayout
+            }
+        }
+
+        mainContainer?.let {
+            // Try to insert it before the last card (Estimated Size)
+            val childCount = it.childCount
+            if (childCount > 0) {
+                // Find the last MaterialCardView (estimated size card)
+                var estimatedSizeCardIndex = -1
+                for (i in childCount - 1 downTo 0) {
+                    if (it.getChildAt(i) is com.google.android.material.card.MaterialCardView) {
+                        estimatedSizeCardIndex = i
+                        break
+                    }
+                }
+                if (estimatedSizeCardIndex != -1) {
+                    it.addView(saveAsDefaultsSwitch, estimatedSizeCardIndex)
+                } else {
+                    // If no card found, just add it at the end of the container
+                    it.addView(saveAsDefaultsSwitch)
+                }
+            } else {
+                it.addView(saveAsDefaultsSwitch)
+            }
+        } ?: Log.e(TAG, "Could not find a suitable LinearLayout container to add the switch.")
     }
 
     private fun getFormatDisplayName(mimeType: String): String {
@@ -367,15 +442,27 @@ class SettingsActivity : Activity() {
         btnAddCustomFrameRate.setOnClickListener { showCustomFrameRateDialog() }
 
         spinnerResolution.setOnItemClickListener { _, _, position, _ ->
-            settingsManager.saveResolution(resolutionAdapter?.getItem(position) ?: getString(R.string.resolution_original_display_name)); updateEstimatedSize()
+            val selectedResolution = resolutionAdapter?.getItem(position) ?: getString(R.string.resolution_original_display_name)
+            if (!isTemporarySettingsMode) {
+                settingsManager.saveResolution(selectedResolution)
+            }
+            updateEstimatedSize()
         }
         spinnerFormat.setOnItemClickListener { _, _, position, _ ->
             val selectedFriendlyName = formatAdapter?.getItem(position)
             val selectedFormatMime = supportedMimeTypesWithFriendlyNames.find { it.first == selectedFriendlyName }?.second ?: SettingsManager.DEFAULT_FORMAT
-            settingsManager.saveFormat(selectedFormatMime); updateCapabilitiesForFormat(selectedFormatMime); updateEstimatedSize()
+            if (!isTemporarySettingsMode) {
+                settingsManager.saveFormat(selectedFormatMime)
+            }
+            updateCapabilitiesForFormat(selectedFormatMime)
+            updateEstimatedSize()
         }
         spinnerQuality.setOnItemClickListener { _, _, position, _ ->
-            settingsManager.saveQuality(qualityAdapter?.getItem(position) ?: supportedQualities.first()); updateEstimatedSize()
+            val selectedQuality = qualityAdapter?.getItem(position) ?: supportedQualities.first()
+            if (!isTemporarySettingsMode) {
+                settingsManager.saveQuality(selectedQuality)
+            }
+            updateEstimatedSize()
         }
         spinnerFrameRate.setOnItemClickListener { _, _, position, _ ->
             val selectedFpsDisplay = frameRateAdapter?.getItem(position) ?: getString(R.string.frame_rate_original_display_name)
@@ -384,13 +471,27 @@ class SettingsActivity : Activity() {
             } else {
                 selectedFpsDisplay.removeSuffix(" FPS").toIntOrNull() ?: SettingsManager.DEFAULT_FRAME_RATE
             }
-            settingsManager.saveFrameRate(fpsToSave); updateEstimatedSize()
+            if (!isTemporarySettingsMode) {
+                settingsManager.saveFrameRate(fpsToSave)
+            }
+            updateEstimatedSize()
         }
         spinnerAudioBitrate.setOnItemClickListener { _, _, position, _ ->
             val selectedDisplayName = audioBitrateAdapter?.getItem(position)
             val selectedBitrateBps = commonAudioBitrates[selectedDisplayName] ?: commonAudioBitrates.values.first()
-            settingsManager.saveAudioBitrate(selectedBitrateBps); updateEstimatedSize()
+            if (!isTemporarySettingsMode) {
+                settingsManager.saveAudioBitrate(selectedBitrateBps)
+            }
+            updateEstimatedSize()
         }
+    }
+
+    private fun storeInitialSettings() {
+        initialResolution = settingsManager.loadResolution()
+        initialFormatMime = settingsManager.loadFormat()
+        initialQuality = settingsManager.loadQuality()
+        initialFrameRate = settingsManager.loadFrameRate()
+        initialAudioBitrate = settingsManager.loadAudioBitrate()
     }
 
     private fun showCustomResolutionDialog() {
@@ -424,7 +525,10 @@ class SettingsActivity : Activity() {
                         resolutionAdapter?.notifyDataSetChanged()
                     }
                     spinnerResolution.setText(customResDisplayName, false)
-                    settingsManager.saveResolution(customResDisplayName); updateEstimatedSize()
+                    if (!isTemporarySettingsMode) {
+                        settingsManager.saveResolution(customResDisplayName)
+                    }
+                    updateEstimatedSize()
                     dialog.dismiss()
                 } else { Toast.makeText(this, getString(R.string.error_invalid_resolution_value), Toast.LENGTH_SHORT).show() }
             }
@@ -449,7 +553,10 @@ class SettingsActivity : Activity() {
                         frameRateAdapter?.notifyDataSetChanged()
                     }
                     spinnerFrameRate.setText(fpsDisplayString, false)
-                    settingsManager.saveFrameRate(fpsInt); updateEstimatedSize()
+                    if (!isTemporarySettingsMode) {
+                        settingsManager.saveFrameRate(fpsInt)
+                    }
+                    updateEstimatedSize()
                     dialog.dismiss()
                 } else { Toast.makeText(this, getString(R.string.error_invalid_frame_rate_value), Toast.LENGTH_SHORT).show()}
             }
@@ -494,6 +601,83 @@ class SettingsActivity : Activity() {
         val totalBitrateBps = videoBitrateBps + audioBitrateBps
         val bytesPerMinute = (totalBitrateBps / 8.0) * 60
         textViewEstimatedSize.text = "Estimated size: ~${formatBytesToHumanReadable(bytesPerMinute)}/min"
+    }
+
+    private fun getSelectedSettings(): Bundle {
+        val settingsBundle = Bundle()
+        settingsBundle.putString(SettingsManager.PREF_RESOLUTION, spinnerResolution.text.toString())
+        val selectedFormatDisplayName = spinnerFormat.text.toString()
+        val selectedFormatMime = supportedMimeTypesWithFriendlyNames.find { it.first == selectedFormatDisplayName }?.second ?: SettingsManager.DEFAULT_FORMAT
+        settingsBundle.putString(SettingsManager.PREF_FORMAT, selectedFormatMime)
+        settingsBundle.putString(SettingsManager.PREF_QUALITY, spinnerQuality.text.toString())
+
+        val selectedFpsDisplay = spinnerFrameRate.text.toString()
+        val fpsToReturn = if (selectedFpsDisplay == getString(R.string.frame_rate_original_display_name)) {
+            SettingsManager.ORIGINAL_FRAME_RATE
+        } else {
+            selectedFpsDisplay.removeSuffix(" FPS").toIntOrNull() ?: SettingsManager.DEFAULT_FRAME_RATE
+        }
+        settingsBundle.putInt(SettingsManager.PREF_FRAME_RATE, fpsToReturn)
+
+        val selectedAudioBitrateDisplayName = spinnerAudioBitrate.text.toString()
+        val audioBitrateToReturn = commonAudioBitrates[selectedAudioBitrateDisplayName] ?: commonAudioBitrates.values.first()
+        settingsBundle.putInt(SettingsManager.PREF_AUDIO_BITRATE, audioBitrateToReturn)
+        return settingsBundle
+    }
+
+    private fun haveSettingsChanged(): Boolean {
+        if (!isTemporarySettingsMode) return false // Should not be called if not in temp mode
+
+        val currentRes = spinnerResolution.text.toString()
+        val currentFormatDisplayName = spinnerFormat.text.toString()
+        val currentFormatMime = supportedMimeTypesWithFriendlyNames.find { it.first == currentFormatDisplayName }?.second ?: SettingsManager.DEFAULT_FORMAT
+        val currentQuality = spinnerQuality.text.toString()
+        val currentFpsDisplay = spinnerFrameRate.text.toString()
+        val currentFps = if (currentFpsDisplay == getString(R.string.frame_rate_original_display_name)) {
+            SettingsManager.ORIGINAL_FRAME_RATE
+        } else {
+            currentFpsDisplay.removeSuffix(" FPS").toIntOrNull() ?: SettingsManager.DEFAULT_FRAME_RATE
+        }
+        val currentAudioBitrateDisplayName = spinnerAudioBitrate.text.toString()
+        val currentAudioBitrate = commonAudioBitrates[currentAudioBitrateDisplayName] ?: commonAudioBitrates.values.first()
+
+        return initialResolution != currentRes ||
+                initialFormatMime != currentFormatMime ||
+                initialQuality != currentQuality ||
+                initialFrameRate != currentFps ||
+                initialAudioBitrate != currentAudioBitrate
+    }
+
+    override fun finish() {
+        if (isTemporarySettingsMode) {
+            val resultIntent = Intent()
+            val settingsChanged = haveSettingsChanged()
+            if (settingsChanged) {
+                val currentSettingsBundle = getSelectedSettings()
+                resultIntent.putExtras(currentSettingsBundle)
+                setResult(Activity.RESULT_OK, resultIntent)
+
+                if (saveAsDefaultsSwitch?.isChecked == true) {
+                    settingsManager.saveResolution(currentSettingsBundle.getString(SettingsManager.PREF_RESOLUTION) ?: initialResolution!!)
+                    settingsManager.saveFormat(currentSettingsBundle.getString(SettingsManager.PREF_FORMAT) ?: initialFormatMime!!)
+                    settingsManager.saveQuality(currentSettingsBundle.getString(SettingsManager.PREF_QUALITY) ?: initialQuality!!)
+                    settingsManager.saveFrameRate(currentSettingsBundle.getInt(SettingsManager.PREF_FRAME_RATE, initialFrameRate!!))
+                    settingsManager.saveAudioBitrate(currentSettingsBundle.getInt(SettingsManager.PREF_AUDIO_BITRATE, initialAudioBitrate!!))
+                }
+            } else {
+                setResult(Activity.RESULT_CANCELED, resultIntent)
+            }
+        }
+        // For non-temporary mode, settings are saved on change by listeners, so just super.finish()
+        super.finish()
+    }
+
+    override fun onNavigateUp(): Boolean {
+        if (isTemporarySettingsMode) {
+            finish() // finish() now contains the temporary mode logic
+            return true
+        }
+        return super.onNavigateUp()
     }
 
     private fun formatBytesToHumanReadable(bytes: Double): String {
