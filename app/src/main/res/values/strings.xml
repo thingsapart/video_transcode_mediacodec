@@ -29,4 +29,6 @@
     <string name="save_settings_as_defaults">Save settings as new defaults</string>
     <string name="title_temporary_settings">Temporary Settings</string>
     <string name="applying_temporary_settings">Applying temporary settings and restarting transcode...</string>
+    <string name="apply_amp_rerun_video"><![CDATA[Apply & Rerun Video]]></string>
+    <string name="settings">Settings</string>
 </resources>

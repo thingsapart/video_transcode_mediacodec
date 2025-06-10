@@ -68,6 +68,7 @@ class SettingsActivity : Activity() {
     // Other UI
     private lateinit var textViewEstimatedSize: TextView
     private lateinit var saveAsDefaultsSwitch: com.google.android.material.switchmaterial.SwitchMaterial // Changed to non-nullable
+    private lateinit var btnApplyAndRerun: com.google.android.material.button.MaterialButton
 
     // Initial settings for temporary mode change detection
     private var initialResolution: String? = null
@@ -153,6 +154,30 @@ class SettingsActivity : Activity() {
             storeInitialSettings()
         }
         setupListeners()
+
+        btnApplyAndRerun = findViewById(R.id.btn_apply_and_rerun)
+        if (isTemporarySettingsMode) {
+            saveAsDefaultsSwitch.visibility = View.VISIBLE
+            saveAsDefaultsSwitch.isChecked = false
+            btnApplyAndRerun.visibility = View.VISIBLE // Make new button visible
+        } else {
+            saveAsDefaultsSwitch.visibility = View.GONE
+            // btnApplyAndRerun is already gone by default in XML, but can be explicit if needed
+            // btnApplyAndRerun.visibility = View.GONE
+        }
+
+        btnApplyAndRerun.setOnClickListener {
+            if (isTemporarySettingsMode) {
+                // The existing finish() method already contains the logic
+                // to check if settings changed, get the bundle, and set the result.
+                // It also handles the "save as defaults" switch.
+                // So, we can just call finish().
+                // If settings haven't changed, finish() will set RESULT_CANCELED,
+                // which is fine; PreviewActivity won't re-transcode unnecessarily.
+                // If they have changed, it will set RESULT_OK with the bundle.
+                finish()
+            }
+        }
 
         Log.d(TAG, "onCreate: UI initialized and listeners set up with corrected order.")
     }

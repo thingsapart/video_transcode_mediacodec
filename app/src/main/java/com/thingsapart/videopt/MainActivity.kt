@@ -12,6 +12,7 @@ import android.util.Log
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
+import java.io.File
 
 class MainActivity : Activity() {
     private lateinit var tvStatus: TextView
@@ -25,9 +26,38 @@ class MainActivity : Activity() {
         private const val TAG = "MainActivity"
     }
 
+    // Add this method to MainActivity.kt
+    private fun clearTranscodingCache() {
+        val cacheSubDir = File(cacheDir, "transcoded_videos")
+        if (cacheSubDir.exists() && cacheSubDir.isDirectory) {
+            val files = cacheSubDir.listFiles()
+            if (files == null || files.isEmpty()) {
+                Log.i("MainActivityCache", "No files to clear in transcoding cache.")
+                return
+            }
+            var deletedCount = 0
+            for (file in files) {
+                if (file.delete()) {
+                    deletedCount++
+                    Log.i("MainActivityCache", "Deleted cached file: ${file.name}")
+                } else {
+                    Log.w("MainActivityCache", "Failed to delete cached file: ${file.name}")
+                }
+            }
+            if (deletedCount > 0) {
+                Log.i("MainActivityCache", "Cleared $deletedCount files from transcoding cache.")
+            }
+        } else {
+            Log.i("MainActivityCache", "Transcoding cache directory does not exist or is not a directory.")
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate called. Intent: $intent")
+
+        clearTranscodingCache()
+        Log.d("MainActivity", "Initial transcoding cache cleanup check complete.")
 
         if (intent?.action == Intent.ACTION_SEND && intent.type?.startsWith("video/") == true) {
             setContentView(R.layout.activity_main)

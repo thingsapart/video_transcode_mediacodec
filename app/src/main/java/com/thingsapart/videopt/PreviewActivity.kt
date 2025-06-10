@@ -38,12 +38,31 @@ class PreviewActivity : Activity() {
 
     private var inputVideoUri: Uri? = null
     private var contentUri: Uri? = null // Added to address the "must be initialized" error context
+    private var currentTranscodingStatus: String = STATUS_PENDING
 
     companion object {
         private const val TAG = "PreviewActivity"
         // Consistent with TranscodingService
         const val EXTRA_INPUT_VIDEO_URI = "extra_input_video_uri" // Ensure this matches MainActivity's key
         private const val REQUEST_CODE_TEMPORARY_SETTINGS = 1001
+
+        // Constants for saving state
+        private const val STATE_OUTPUT_URI = "state_output_uri"
+        private const val STATE_OUTPUT_MIME_TYPE = "state_output_mime_type"
+        private const val STATE_TRANSCODING_STATUS = "state_transcoding_status"
+        private const val STATE_STATUS_TEXT = "state_status_text"
+        private const val STATE_SHARE_BUTTON_TEXT = "state_share_button_text"
+        private const val STATE_SHARE_BUTTON_ENABLED = "state_share_button_enabled"
+        private const val STATE_PROGRESS_BAR_VISIBILITY = "state_progress_bar_visibility"
+        private const val STATE_VIDEO_VIEW_VISIBILITY = "state_video_view_visibility"
+        private const val STATE_THUMBNAIL_VISIBILITY = "state_thumbnail_visibility"
+        private const val STATE_FADE_VIEW_VISIBILITY = "state_fade_view_visibility"
+        private const val STATE_VIDEO_PLAYBACK_POSITION = "state_video_playback_position"
+
+        // Transcoding status values
+        private const val STATUS_PENDING = "PENDING"
+        private const val STATUS_COMPLETE = "COMPLETE"
+        private const val STATUS_ERROR = "ERROR"
     }
 
     private val transcodingReceiver = object : BroadcastReceiver() {
@@ -54,6 +73,7 @@ class PreviewActivity : Activity() {
                     Log.d(TAG, "Received progress: $progress%")
                     progressBarTranscoding.progress = progress
                     textViewStatus.text = "Transcoding: $progress%"
+                    currentTranscodingStatus = STATUS_PENDING // Or ensure it's already PENDING
                 }
                 TranscodingService.ACTION_TRANSCODING_COMPLETE -> {
                     val uriString = intent.getStringExtra(TranscodingService.EXTRA_OUTPUT_URI)
@@ -61,6 +81,7 @@ class PreviewActivity : Activity() {
                     val videoSizeBytes = intent.getLongExtra(TranscodingService.EXTRA_OUTPUT_VIDEO_SIZE, -1L)
 
                     if (uriString != null) {
+                        currentTranscodingStatus = STATUS_COMPLETE
                         outputVideoUri = Uri.parse(uriString)
                         Log.i(TAG, "Transcoding complete. Output URI: $outputVideoUri, MIME: $outputVideoMimeType, Size: $videoSizeBytes bytes")
                         textViewStatus.text = "Transcoding Complete! Tap video to play."
@@ -69,7 +90,7 @@ class PreviewActivity : Activity() {
                         videoView.setVideoURI(outputVideoUri)
                         videoView.visibility = View.VISIBLE
                         imageViewThumbnail.visibility = View.GONE
-                        viewFade.visibility = View.GONE
+                        //viewFade.visibility = View.GONE
 
                         if (videoSizeBytes > 0) {
                             btnShare.text = "Share (${formatFileSize(videoSizeBytes)})"
@@ -90,6 +111,7 @@ class PreviewActivity : Activity() {
                     }
                 }
                 TranscodingService.ACTION_TRANSCODING_ERROR -> {
+                    currentTranscodingStatus = STATUS_ERROR
                     val errorMessage = intent.getStringExtra(TranscodingService.EXTRA_ERROR_MESSAGE) ?: "Unknown transcoding error"
                     btnShare.text = "Share"
                     btnShare.isEnabled = false
@@ -97,7 +119,7 @@ class PreviewActivity : Activity() {
                     textViewStatus.text = "Error: $errorMessage"
                     progressBarTranscoding.visibility = View.GONE
                     imageViewThumbnail.visibility = View.VISIBLE
-                    viewFade.visibility = View.VISIBLE
+                    //viewFade.visibility = View.VISIBLE
                     videoView.visibility = View.GONE
                     btnShare.visibility = View.GONE // Or INVISIBLE
                 }
@@ -111,38 +133,114 @@ class PreviewActivity : Activity() {
         Log.d(TAG, "onCreate called")
 
         imageViewThumbnail = findViewById(R.id.imageview_thumbnail)
-        viewFade = findViewById(R.id.view_fade)
+        //viewFade = findViewById(R.id.view_fade)
         videoView = findViewById(R.id.video_view_preview)
         progressBarTranscoding = findViewById(R.id.progressbar_transcoding)
         textViewStatus = findViewById(R.id.textview_status)
         btnShare = findViewById(R.id.btn_share_transcoded)
         fabSettings = findViewById(R.id.fab_settings)
 
+        // Initialize MediaController here, it will be reassigned if needed during state restoration
         val mediaController = MediaController(this)
         mediaController.setAnchorView(videoView)
         videoView.setMediaController(mediaController)
 
-        textViewStatus.text = "Preparing for transcoding..."
-        progressBarTranscoding.progress = 0
-        progressBarTranscoding.visibility = View.VISIBLE
-        btnShare.visibility = View.INVISIBLE // Keep layout space, but not interactive
-        btnShare.isEnabled = false
-        imageViewThumbnail.visibility = View.VISIBLE
-        viewFade.visibility = View.VISIBLE
-        videoView.visibility = View.GONE
+        btnShare.setOnClickListener {
+            if (outputVideoUri != null) { // Check if there's something to share
+                shareTranscodingVideo()
+            } else {
+                Toast.makeText(this, "No video available to share yet.", Toast.LENGTH_SHORT).show()
+                Log.w(TAG, "Share button clicked but outputVideoUri is null.")
+            }
+        }
 
-        val inputVideoUriString = intent.getStringExtra(EXTRA_INPUT_VIDEO_URI)
-        if (inputVideoUriString != null) {
-            val parsedUri = Uri.parse(inputVideoUriString)
-            inputVideoUri = parsedUri
-            contentUri = parsedUri // Initialize the contentUri class member
+        fabSettings.setOnClickListener {
+            val intent = Intent(this, SettingsActivity::class.java)
+            intent.putExtra(SettingsActivity.EXTRA_IS_TEMPORARY_SETTINGS, true)
+            startActivityForResult(intent, REQUEST_CODE_TEMPORARY_SETTINGS)
+        }
 
-            Log.i(TAG, "PreviewActivity onCreate: Parsed URI for thumbnail: $parsedUri")
-            if (parsedUri != null) { // Technically, parsedUri won't be null if inputVideoUriString wasn't, but good for consistency
-                Log.i(TAG, "URI Scheme: ${parsedUri.scheme}, Path: ${parsedUri.path}, Authority: ${parsedUri.authority}")
+        if (savedInstanceState != null) {
+            Log.d(TAG, "onCreate: Restoring from savedInstanceState")
+            currentTranscodingStatus = savedInstanceState.getString(STATE_TRANSCODING_STATUS, STATUS_PENDING)
+            savedInstanceState.getString(STATE_OUTPUT_URI)?.let { outputVideoUri = Uri.parse(it) }
+            outputVideoMimeType = savedInstanceState.getString(STATE_OUTPUT_MIME_TYPE, "video/mp4")
+
+            textViewStatus.text = savedInstanceState.getString(STATE_STATUS_TEXT)
+            btnShare.text = savedInstanceState.getString(STATE_SHARE_BUTTON_TEXT)
+            btnShare.isEnabled = savedInstanceState.getBoolean(STATE_SHARE_BUTTON_ENABLED)
+            progressBarTranscoding.visibility = savedInstanceState.getInt(STATE_PROGRESS_BAR_VISIBILITY)
+
+            // Important: Only set video URI if it's valid and status is complete
+            if (currentTranscodingStatus == STATUS_COMPLETE && outputVideoUri != null) {
+                imageViewThumbnail.visibility = savedInstanceState.getInt(STATE_THUMBNAIL_VISIBILITY, View.GONE)
+                //viewFade.visibility = savedInstanceState.getInt(STATE_FADE_VIEW_VISIBILITY, View.GONE)
+                videoView.visibility = savedInstanceState.getInt(STATE_VIDEO_VIEW_VISIBILITY, View.VISIBLE)
+
+                videoView.setVideoURI(outputVideoUri)
+                val playbackPosition = savedInstanceState.getInt(STATE_VIDEO_PLAYBACK_POSITION, 0)
+                videoView.seekTo(playbackPosition) // Seek first
+
+                // Ensure MediaController is set up BEFORE start() if it's needed immediately
+                val mediaController = MediaController(this) // Use the already defined one or re-init if needed
+                mediaController.setAnchorView(videoView)
+                videoView.setMediaController(mediaController)
+
+                videoView.start() // Then start playback to refresh the view and continue playing
+
+                videoView.requestFocus() // Request focus for MediaController interaction
+
+            } else {
+                // If not complete, restore thumbnail/fade visibility as saved
+                imageViewThumbnail.visibility = savedInstanceState.getInt(STATE_THUMBNAIL_VISIBILITY, View.VISIBLE)
+                //viewFade.visibility = savedInstanceState.getInt(STATE_FADE_VIEW_VISIBILITY, View.VISIBLE)
+                videoView.visibility = savedInstanceState.getInt(STATE_VIDEO_VIEW_VISIBILITY, View.GONE)
+            }
+
+            // Restore visibility for other elements based on general saved state
+            textViewStatus.visibility = View.VISIBLE // usually always visible
+            btnShare.visibility = if(btnShare.isEnabled) View.VISIBLE else View.INVISIBLE
+
+            // Handle thumbnail loading based on restored state
+            val inputVideoUriString = intent.getStringExtra(EXTRA_INPUT_VIDEO_URI) // Get original input URI
+            if (inputVideoUriString != null) {
+                 inputVideoUri = Uri.parse(inputVideoUriString) // Ensure inputVideoUri is set for loadThumbnail if needed
+            }
+
+            if (currentTranscodingStatus == STATUS_COMPLETE && outputVideoUri != null) {
+                Log.d(TAG, "Restored to COMPLETE state. Skipping initial transcoding trigger if any.")
+                // Thumbnail is already hidden, videoView is visible.
+            } else if (currentTranscodingStatus == STATUS_ERROR) {
+                Log.d(TAG, "Restored to ERROR state.")
+                inputVideoUri?.let { loadThumbnail(it) } // Reload original thumbnail
+            } else { // STATUS_PENDING or other
+                Log.d(TAG, "Restored to PENDING state. Original transcoding logic will proceed if URI was in intent.")
+                inputVideoUri?.let { loadThumbnail(it) } // Reload original thumbnail
+            }
+
+        } else {
+            // This is the normal flow when there's no savedInstanceState
+            Log.d(TAG, "onCreate: No savedInstanceState. Initializing normally.")
+            currentTranscodingStatus = STATUS_PENDING // Ensure it's reset
+
+            textViewStatus.text = "Preparing for transcoding..."
+            progressBarTranscoding.progress = 0
+            progressBarTranscoding.visibility = View.VISIBLE
+            btnShare.visibility = View.INVISIBLE
+            btnShare.isEnabled = false
+            imageViewThumbnail.visibility = View.VISIBLE
+            //viewFade.visibility = View.VISIBLE
+            videoView.visibility = View.GONE
+
+            val inputVideoUriString = intent.getStringExtra(EXTRA_INPUT_VIDEO_URI)
+            if (inputVideoUriString != null) {
+                val parsedUri = Uri.parse(inputVideoUriString)
+                inputVideoUri = parsedUri
+                contentUri = parsedUri
+
+                Log.i(TAG, "PreviewActivity onCreate (fresh): Parsed URI for thumbnail: $parsedUri")
                 if ("content" == parsedUri.scheme) {
                     try {
-                        // Querying display name and size for content URIs
                         val cursor = contentResolver.query(parsedUri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME, android.provider.OpenableColumns.SIZE), null, null, null)
                         cursor?.use {
                             if (it.moveToFirst()) {
@@ -159,37 +257,48 @@ class PreviewActivity : Activity() {
                         Log.e(TAG, "Error querying content URI details for $parsedUri", e)
                     }
                 }
-            } else { // This else branch should ideally not be hit if inputVideoUriString was non-null
-                Log.e(TAG, "PreviewActivity onCreate: parsedUri is NULL even after parsing from non-null inputVideoUriString.")
-            }
-            loadThumbnail(parsedUri) // Use the local parsedUri which is confirmed non-null here
-        } else {
-            Log.e(TAG, "No input_video_uri found in intent. inputVideoUriString is null.")
-            Toast.makeText(this, "Error: Input video not found.", Toast.LENGTH_LONG).show()
-            textViewStatus.text = "Error: Input video not specified."
-            imageViewThumbnail.setImageResource(R.drawable.ic_placeholder_video) // Show placeholder
-            // Disable share button and hide progress as transcoding can't start
-            btnShare.visibility = View.GONE
-            progressBarTranscoding.visibility = View.GONE
-            // Optionally finish the activity if input URI is critical for all functions
-            // finish()
-            // return // Not strictly needed if finish() is called, but good practice.
-        }
-
-        btnShare.setOnClickListener {
-            if (outputVideoUri != null) { // Check if there's something to share
-                shareTranscodingVideo()
+                loadThumbnail(parsedUri)
+                // IMPORTANT: Transcoding should be started via onActivityResult or if specific conditions met.
+                // For a fresh start, if settings are NOT changed first, it implies direct transcoding.
+                // However, the original code didn't start service here, it was started by onActivityResult.
+                // Let's stick to that pattern: User must interact with settings first or it's just preview.
+                // OR, if no temporary settings flow, start directly.
+                // For now, let's assume a direct start if no saved instance and URI is present.
+                // This part needs to be clear: WHEN does transcoding START?
+                // If it's after settings, then this is fine. If it should start on initial open, then:
+                // TranscodingService.startTranscoding(this, inputVideoUri!!) // - This line would be needed.
+                // Given the flow through settings, this seems okay to NOT start here automatically.
+                // The user will go to settings, save, and then onActivityResult will trigger it.
+                // If the app is meant to transcode immediately on open with default settings,
+                // then a call to start service here IS required.
+                // Let's assume for now the flow requires going via settings (even if defaults are kept).
+                // This means the UI will show "Preparing for transcoding..." until settings are confirmed.
             } else {
-                // This case should ideally not be reached if button is only enabled when outputVideoUri is set
-                Toast.makeText(this, "No video available to share yet.", Toast.LENGTH_SHORT).show()
-                Log.w(TAG, "Share button clicked but outputVideoUri is null.")
+                Log.e(TAG, "No input_video_uri found in intent. inputVideoUriString is null.")
+                Toast.makeText(this, "Error: Input video not found.", Toast.LENGTH_LONG).show()
+                textViewStatus.text = "Error: Input video not specified."
+                imageViewThumbnail.setImageResource(R.drawable.ic_placeholder_video)
+                btnShare.visibility = View.GONE
+                progressBarTranscoding.visibility = View.GONE
             }
         }
+    }
 
-        fabSettings.setOnClickListener {
-            val intent = Intent(this, SettingsActivity::class.java)
-            intent.putExtra(SettingsActivity.EXTRA_IS_TEMPORARY_SETTINGS, true)
-            startActivityForResult(intent, REQUEST_CODE_TEMPORARY_SETTINGS)
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        Log.d(TAG, "onSaveInstanceState called")
+        outState.putString(STATE_TRANSCODING_STATUS, currentTranscodingStatus)
+        outputVideoUri?.let { outState.putString(STATE_OUTPUT_URI, it.toString()) }
+        outState.putString(STATE_OUTPUT_MIME_TYPE, outputVideoMimeType)
+        outState.putString(STATE_STATUS_TEXT, textViewStatus.text.toString())
+        outState.putString(STATE_SHARE_BUTTON_TEXT, btnShare.text.toString())
+        outState.putBoolean(STATE_SHARE_BUTTON_ENABLED, btnShare.isEnabled)
+        outState.putInt(STATE_PROGRESS_BAR_VISIBILITY, progressBarTranscoding.visibility)
+        outState.putInt(STATE_VIDEO_VIEW_VISIBILITY, videoView.visibility)
+        outState.putInt(STATE_THUMBNAIL_VISIBILITY, imageViewThumbnail.visibility)
+        //outState.putInt(STATE_FADE_VIEW_VISIBILITY, viewFade.visibility)
+        if (videoView.visibility == View.VISIBLE) {
+            outState.putInt(STATE_VIDEO_PLAYBACK_POSITION, videoView.currentPosition)
         }
     }
 
@@ -204,6 +313,7 @@ class PreviewActivity : Activity() {
                 if (temporarySettingsBundle != null && inputVideoUri != null) {
                     Log.d(TAG, "Applying temporary settings for transcoding.")
 
+                    currentTranscodingStatus = STATUS_PENDING;
                     // Reset UI to initial transcoding state
                     textViewStatus.text = getString(R.string.applying_temporary_settings)
                     progressBarTranscoding.progress = 0
@@ -212,7 +322,7 @@ class PreviewActivity : Activity() {
                     btnShare.isEnabled = false
                     videoView.visibility = View.GONE
                     imageViewThumbnail.visibility = View.VISIBLE // Show placeholder/last thumbnail
-                    viewFade.visibility = View.VISIBLE
+                    //viewFade.visibility = View.VISIBLE
 
                     // Stop any ongoing service explicitly if possible, though starting a new one
                     // with the same foreground ID might just replace it or cause issues if not handled well by the service.
@@ -247,6 +357,7 @@ class PreviewActivity : Activity() {
         Log.i(TAG, "loadThumbnail called with URI: $uri")
         if (uri == null) {
             Log.w(TAG, "loadThumbnail: videoUri is null, setting placeholder.")
+            imageViewThumbnail.setImageDrawable(null);
             imageViewThumbnail.setImageResource(R.drawable.ic_placeholder_video)
             return
         }
@@ -262,13 +373,16 @@ class PreviewActivity : Activity() {
 
             if (bitmap != null) {
                 Log.i(TAG, "Bitmap retrieved: Dimensions ${bitmap.width}x${bitmap.height}")
+                imageViewThumbnail.setImageDrawable(null);
                 imageViewThumbnail.setImageBitmap(bitmap)
             } else {
                 Log.e(TAG, "Failed to retrieve thumbnail using MediaMetadataRetriever, bitmap is null for URI: $uri")
+                imageViewThumbnail.setImageDrawable(null);
                 imageViewThumbnail.setImageResource(R.drawable.ic_placeholder_video)
             }
         } catch (e: Exception) {
             Log.e(TAG, "loadThumbnail: Exception during MediaMetadataRetriever operations for $uri", e)
+            imageViewThumbnail.setImageDrawable(null);
             imageViewThumbnail.setImageResource(R.drawable.ic_placeholder_video)
         } finally {
             Log.i(TAG, "loadThumbnail: MediaMetadataRetriever release attempt.")
@@ -360,6 +474,54 @@ class PreviewActivity : Activity() {
         } catch (e: android.content.ActivityNotFoundException) {
             Toast.makeText(this, "No app found to handle sharing video.", Toast.LENGTH_SHORT).show()
             Log.e(TAG, "ActivityNotFoundException for sharing: $e")
+        }
+
+        // After starting activity, delete the shared file
+        try {
+            outputVideoUri?.path?.let { path ->
+                val fileToDelete = File(path)
+                if (fileToDelete.exists()) {
+                    if (fileToDelete.delete()) {
+                        Log.i(TAG, "Successfully deleted shared file: ${fileToDelete.absolutePath}")
+                    } else {
+                        Log.w(TAG, "Failed to delete shared file: ${fileToDelete.absolutePath}")
+                    }
+                }
+                // Optionally set outputVideoUri to null now, if appropriate for app logic
+                // outputVideoUri = null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deleting shared file", e)
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.d(TAG, "onDestroy called. isChangingConfigurations: ${isChangingConfigurations()}")
+
+        // Only delete the file if the activity is actually finishing, not just due to a configuration change.
+        if (!isChangingConfigurations()) {
+            outputVideoUri?.path?.let { path ->
+                try {
+                    val fileToDelete = File(path)
+                    if (fileToDelete.exists()) {
+                        // Check if the file is in our app's cache directory to be safer
+                        if (fileToDelete.absolutePath.startsWith(cacheDir.absolutePath)) {
+                            if (fileToDelete.delete()) {
+                                Log.i(TAG, "Cleaned up transcoded file in onDestroy (activity finishing): ${fileToDelete.absolutePath}")
+                            } else {
+                                Log.w(TAG, "Failed to clean up transcoded file in onDestroy (activity finishing): ${fileToDelete.absolutePath}")
+                            }
+                        } else {
+                            Log.w(TAG, "Skipping deletion in onDestroy (activity finishing), file not in cache: ${fileToDelete.absolutePath}")
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error during onDestroy cleanup (activity finishing) of transcoded file", e)
+                }
+            }
+        } else {
+            Log.d(TAG, "Skipping onDestroy cleanup as it's due to configuration change.")
         }
     }
 

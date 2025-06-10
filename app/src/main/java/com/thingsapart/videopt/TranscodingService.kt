@@ -209,16 +209,25 @@ class TranscodingService : Service() {
                             }
                         }
                         override fun onTranscodeCanceled() {
-                            // Check currentTranscodingJob specifically, as serviceJob is for the whole service
                             currentTranscodingJob?.let { job ->
-                                if (job.isCancelled) { // Check if this specific job was cancelled
+                                if (job.isCancelled) {
                                     Log.w(TAG, "Transcoding Canceled (job was cancelled)")
                                     updateNotification("Transcoding canceled.")
-                                    // Don't send error broadcast if it was an intentional cancellation for a new task
-                                    // sendBroadcastResult(ACTION_TRANSCODING_ERROR, errorMessage = "Transcoding canceled by new request.")
-                                    // stopSelf() // Don't stopSelf if a new task is about to start
+                                    try {
+                                        val fileToDelete = File(outputVideoPath) // outputVideoPath from outer scope
+                                        if (fileToDelete.exists()) {
+                                            if (fileToDelete.delete()) {
+                                                Log.i(TAG, "Deleted file on transcode cancellation: ${fileToDelete.absolutePath}")
+                                            } else {
+                                                Log.w(TAG, "Failed to delete file on transcode cancellation: ${fileToDelete.absolutePath}")
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "Error deleting file on transcode cancellation", e)
+                                    }
                                 }
                             } ?: Log.w(TAG, "Transcoding Canceled (job is null)")
+                            // Do not stopSelf() here if a new task might start.
                         }
                         override fun onTranscodeFailed(exception: Throwable) {
                             // Only process if this job wasn't cancelled externally
@@ -226,6 +235,19 @@ class TranscodingService : Service() {
                                 Log.e(TAG, "Transcoding Failed", exception)
                                 updateNotification("Transcoding error.")
                                 sendBroadcastResult(ACTION_TRANSCODING_ERROR, errorMessage = exception.localizedMessage ?: "Transcoding error.")
+                                // Attempt to delete the output file on failure
+                                try {
+                                    val fileToDelete = File(outputVideoPath) // outputVideoPath is from the outer scope
+                                    if (fileToDelete.exists()) {
+                                        if (fileToDelete.delete()) {
+                                            Log.i(TAG, "Deleted partially transcoded file on failure: ${fileToDelete.absolutePath}")
+                                        } else {
+                                            Log.w(TAG, "Failed to delete partially transcoded file on failure: ${fileToDelete.absolutePath}")
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Error deleting file on transcode failure", e)
+                                }
                                 stopSelf() // Stop service on failure
                             } else {
                                 Log.i(TAG, "Transcoding failed but job was already cancelled/inactive: ${exception.message}")
